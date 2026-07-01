@@ -223,20 +223,54 @@ window.WMSAuth = {
       throw new Error('Unable to resolve current user session. Please sign in again.');
     }
 
-    const payload = {
-      id: userId,
+    const updates = {
       full_name,
       phone,
       department,
       updated_at: new Date().toISOString()
     };
 
-    const { data, error } = await authSb.from('user_profiles')
-      .upsert(payload, { onConflict: 'id' })
+    let data = null;
+    let error = null;
+
+    const updateResult = await authSb.from('user_profiles')
+      .update(updates)
+      .eq('id', userId)
       .select()
       .single();
 
+    data = updateResult.data;
+    error = updateResult.error;
+
+    if (error && error.message && error.message.includes('Result contains no rows')) {
+      const insertResult = await authSb.from('user_profiles')
+        .insert({
+          id: userId,
+          email: this.profile?.email || null,
+          status: this.profile?.status || 'approved',
+          created_at: new Date().toISOString(),
+          ...updates
+        })
+        .select()
+        .single();
+      data = insertResult.data;
+      error = insertResult.error;
+    }
+
     if (error) throw error;
+
+    if (!data || data.id !== userId) {
+      const verifyResult = await authSb.from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      if (verifyResult.error) throw verifyResult.error;
+      data = verifyResult.data;
+      if (!data) {
+        throw new Error('Profile update completed but profile row could not be verified. Please refresh and try again.');
+      }
+      console.warn('[WMS] Verified profile row after update for user:', userId);
+    }
 
     const mergedProfile = {
       ...this.profile,
