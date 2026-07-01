@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Warehouse WMS — Sign In</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.8/dist/umd/supabase.js"></script>
+
+  <style>
+    :root {
+      --bg-primary: #0b0f19;
+      --bg-secondary: #131c2e;
+      --border-color: rgba(255,255,255,0.06);
+      --border-hover: rgba(255,255,255,0.12);
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent: #06b6d4;
+      --accent-rgb: 6,182,212;
+      --accent-hover: #0891b2;
+      --accent-gradient: linear-gradient(135deg,#06b6d4 0%,#3b82f6 100%);
+      --input-bg: #0e1422;
+      --success-bg: rgba(16,185,129,0.12);
+      --success-color: #34d399;
+      --danger-bg: rgba(239,68,68,0.12);
+      --danger-color: #f87171;
+      --warning-color: #fbbf24;
+    }
+    body.light-theme {
+      --bg-primary: #f4f6f9;
+      --bg-secondary: #ffffff;
+      --border-color: rgba(0,0,0,0.08);
+      --border-hover: rgba(0,0,0,0.15);
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --accent: #2563eb;
+      --accent-rgb: 37,99,235;
+      --accent-hover: #1d4ed8;
+      --accent-gradient: linear-gradient(135deg,#2563eb 0%,#06b6d4 100%);
+      --input-bg: #f8fafc;
+      --success-bg: #dcfce7;
+      --success-color: #15803d;
+      --danger-bg: #fee2e2;
+      --danger-color: #b91c1c;
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s, color 0.3s;
+    }
+    .auth-wrapper {
+      width: 100%;
+      max-width: 440px;
+      padding: 24px 16px;
+    }
+    .auth-brand {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .auth-brand .brand-icon {
+      width: 56px; height: 56px;
+      border-radius: 14px;
+      background: var(--accent-gradient);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: #fff;
+      margin-bottom: 14px;
+      box-shadow: 0 8px 24px rgba(var(--accent-rgb),0.35);
+    }
+    .auth-brand h1 {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.4px;
+    }
+    .auth-brand p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .auth-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5);
+    }
+    .auth-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 28px;
+      background: var(--bg-primary);
+      border-radius: 10px;
+      padding: 4px;
+    }
+    .auth-tab {
+      flex: 1;
+      padding: 9px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 13.5px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: 'Inter', sans-serif;
+    }
+    .auth-tab.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(var(--accent-rgb),0.3);
+    }
+    .form-group {
+      margin-bottom: 18px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .input-wrap {
+      position: relative;
+    }
+    .input-wrap i {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 14px;
+      pointer-events: none;
+    }
+    .input-wrap input {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 12px 14px 12px 40px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .input-wrap input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(var(--accent-rgb),0.15);
+    }
+    .input-wrap .toggle-pw {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px;
+      pointer-events: auto;
+    }
+    .input-wrap .toggle-pw:hover { color: var(--text-secondary); }
+    .btn-auth {
+      width: 100%;
+      padding: 13px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 14.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: 'Inter', sans-serif;
+      margin-top: 8px;
+      box-shadow: 0 4px 14px rgba(var(--accent-rgb),0.3);
+    }
+    .btn-auth:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    .btn-auth:active { transform: translateY(0); }
+    .btn-auth:disabled { opacity: 0.6; pointer-events: none; }
+    .btn-auth .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .auth-message {
+      padding: 11px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .auth-message.error {
+      background: var(--danger-bg);
+      color: var(--danger-color);
+      border: 1px solid rgba(239,68,68,0.2);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .auth-message.success {
+      background: var(--success-bg);
+      color: var(--success-color);
+      border: 1px solid rgba(16,185,129,0.2);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .auth-message.warning {
+      background: rgba(245,158,11,0.12);
+      color: var(--warning-color);
+      border: 1px solid rgba(245,158,11,0.2);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border-color);
+    }
+    .theme-btn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      width: 38px; height: 38px;
+      border-radius: 9px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      transition: all 0.2s;
+    }
+    .theme-btn:hover { background: var(--border-color); color: var(--accent); }
+    .pending-notice {
+      text-align: center;
+      padding: 24px 0 8px;
+      display: none;
+    }
+    .pending-notice .icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+      color: var(--warning-color);
+    }
+    .pending-notice h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+    .pending-notice p { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  </style>
+</head>
+<body>
+
+  <button class="theme-btn" id="theme-toggle" title="Toggle theme">
+    <i class="fa-solid fa-sun"></i>
+  </button>
+
+  <div class="auth-wrapper">
+    <div class="auth-brand">
+      <div class="brand-icon"><i class="fa-solid fa-warehouse"></i></div>
+      <h1>Warehouse WMS</h1>
+      <p>Inventory Control System</p>
+    </div>
+
+    <div class="auth-card">
+      <!-- Tab switcher -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-signin" onclick="switchTab('signin')">Sign In</button>
+        <button class="auth-tab" id="tab-signup" onclick="switchTab('signup')">Request Access</button>
+      </div>
+
+      <!-- Status message -->
+      <div class="auth-message" id="auth-msg"></div>
+
+      <!-- Sign In Form -->
+      <div id="panel-signin">
+        <form id="form-signin" onsubmit="handleSignIn(event)">
+          <div class="form-group">
+            <label for="si-email">Email Address</label>
+            <div class="input-wrap">
+              <i class="fa-solid fa-envelope"></i>
+              <input type="email" id="si-email" placeholder="you@warehouse.com" required autocomplete="email">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="si-password">Password</label>
+            <div class="input-wrap">
+              <i class="fa-solid fa-lock"></i>
+              <input type="password" id="si-password" placeholder="Enter your password" required autocomplete="current-password">
+              <button type="button" class="toggle-pw" onclick="togglePw('si-password',this)"><i class="fa-solid fa-eye"></i></button>
+            </div>
+          </div>
+          <button type="submit" class="btn-auth" id="btn-signin">
+            <i class="fa-solid fa-right-to-bracket"></i> Sign In
+          </button>
+        </form>
+      </div>
+
+      <!-- Sign Up / Request Access Form -->
+      <div id="panel-signup" style="display:none;">
+        <form id="form-signup" onsubmit="handleSignUp(event)">
+          <div class="form-group">
+            <label for="su-name">Full Name</label>
+            <div class="input-wrap">
+              <i class="fa-solid fa-user"></i>
+              <input type="text" id="su-name" placeholder="e.g. Juan dela Cruz" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="su-email">Email Address</label>
+            <div class="input-wrap">
+              <i class="fa-solid fa-envelope"></i>
+              <input type="email" id="su-email" placeholder="you@warehouse.com" required autocomplete="email">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="su-password">Password</label>
+            <div class="input-wrap">
+              <i class="fa-solid fa-lock"></i>
+              <input type="password" id="su-password" placeholder="At least 8 characters" minlength="8" required autocomplete="new-password">
+              <button type="button" class="toggle-pw" onclick="togglePw('su-password',this)"><i class="fa-solid fa-eye"></i></button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="su-password2">Confirm Password</label>
+            <div class="input-wrap">
+              <i class="fa-solid fa-lock"></i>
+              <input type="password" id="su-password2" placeholder="Repeat your password" required autocomplete="new-password">
+            </div>
+          </div>
+          <button type="submit" class="btn-auth" id="btn-signup">
+            <i class="fa-solid fa-paper-plane"></i> Request Access
+          </button>
+        </form>
+
+        <!-- Shown after successful signup request -->
+        <div class="pending-notice" id="pending-notice">
+          <div class="icon"><i class="fa-solid fa-clock"></i></div>
+          <h3>Request Submitted</h3>
+          <p>Your access request has been sent to the administrator for approval. You will be able to sign in once your account is approved.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Supabase client — reuse window._sb if db.js already ran, else create once ──
+    const sb = window._sb || (window.supabase
+      ? window.supabase.createClient(
+          "https://fjpvrxucmxlfojwmbdfu.supabase.co",
+          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqcHZyeHVjbXhsZm9qd21iZGZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4NTM0OTAsImV4cCI6MjA5NzQyOTQ5MH0.Fh6qJI1U1RhKc2ZHsxDABd7SdReYo9TnDTyGpeghfYk"
+        )
+      : null);
+
+    // ── Theme ────────────────────────────────────────────────────
+    const savedTheme = localStorage.getItem('wms_theme') || 'dark';
+    if (savedTheme === 'light') document.body.classList.add('light-theme');
+    document.getElementById('theme-toggle').querySelector('i').className =
+      savedTheme === 'light' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      document.body.classList.toggle('light-theme');
+      const isLight = document.body.classList.contains('light-theme');
+      document.getElementById('theme-toggle').querySelector('i').className =
+        isLight ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+      localStorage.setItem('wms_theme', isLight ? 'light' : 'dark');
+    });
+
+    // ── Tab switcher ─────────────────────────────────────────────
+    function switchTab(tab) {
+      hideMsg();
+      document.getElementById('panel-signin').style.display = tab === 'signin' ? '' : 'none';
+      document.getElementById('panel-signup').style.display = tab === 'signup' ? '' : 'none';
+      document.getElementById('tab-signin').classList.toggle('active', tab === 'signin');
+      document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+    }
+
+    // ── Message helper ───────────────────────────────────────────
+    function showMsg(text, type = 'error') {
+      const el = document.getElementById('auth-msg');
+      const icons = { error: 'fa-circle-xmark', success: 'fa-circle-check', warning: 'fa-triangle-exclamation' };
+      el.className = `auth-message ${type}`;
+      el.innerHTML = `<i class="fa-solid ${icons[type] || icons.error}"></i><span>${text}</span>`;
+    }
+    function hideMsg() { document.getElementById('auth-msg').className = 'auth-message'; }
+
+    function setLoading(btnId, loading) {
+      const btn = document.getElementById(btnId);
+      if (loading) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Processing...';
+      } else {
+        btn.disabled = false;
+        const labels = { 'btn-signin': '<i class="fa-solid fa-right-to-bracket"></i> Sign In', 'btn-signup': '<i class="fa-solid fa-paper-plane"></i> Request Access' };
+        btn.innerHTML = labels[btnId] || 'Submit';
+      }
+    }
+
+    // ── Toggle password visibility ───────────────────────────────
+    function togglePw(inputId, btn) {
+      const input = document.getElementById(inputId);
+      const isHidden = input.type === 'password';
+      input.type = isHidden ? 'text' : 'password';
+      btn.querySelector('i').className = isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+    }
+
+    // ── Check if already logged in ───────────────────────────────
+    (async () => {
+      if (!sb) return;
+      try {
+        const { data: { session } } = await sb.auth.getSession();
+        if (session) {
+          // Already logged in — verify still approved
+          const { data: profile } = await sb.from('user_profiles')
+            .select('status')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          if (profile && profile.status === 'approved') {
+            window.location.replace('index.html');
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to check Supabase login status:", err);
+      }
+    })();
+
+    // ── Local / Offline User Helpers ──────────────────────────────
+
+    // Simple SHA-256 hash for local password storage (no plaintext)
+    async function hashPassword(pw) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function registerLocalUser(name, email, password) {
+      // Hash is computed async; wrap in async IIFE
+      (async () => {
+        try {
+          const localUsers = JSON.parse(localStorage.getItem('wms_local_users') || '[]');
+          if (localUsers.find(u => u.email.toLowerCase() === email.toLowerCase())) {
+            showMsg('A local user with this email already exists.');
+            setLoading('btn-signup', false);
+            return;
+          }
+
+          const isFirst = localUsers.length === 0;
+          const role = isFirst ? 'Administrator' : 'Operator';
+          const status = isFirst ? 'approved' : 'pending';
+
+          const newUser = {
+            id: 'local-' + Math.random().toString(36).substring(2, 11),
+            name,
+            email,
+            passwordHash: await hashPassword(password),
+            role,
+            status,
+            created_at: new Date().toISOString()
+          };
+
+          localUsers.push(newUser);
+          localStorage.setItem('wms_local_users', JSON.stringify(localUsers));
+
+          if (isFirst || status === 'approved') {
+            logInAsLocalUser(newUser);
+          } else {
+            document.getElementById('form-signup').style.display = 'none';
+            document.getElementById('pending-notice').style.display = 'block';
+            showMsg('Local request submitted. Awaiting admin approval.', 'success');
+            setLoading('btn-signup', false);
+          }
+        } catch (err) {
+          showMsg('Local registration failed: ' + err.message);
+          setLoading('btn-signup', false);
+        }
+      })();
+    }
+
+    function logInAsLocalUser(userObj) {
+      localStorage.setItem('wms_bypass_session', JSON.stringify({
+        user: { id: userObj.id, email: userObj.email }
+      }));
+      localStorage.setItem('wms_bypass_profile', JSON.stringify({
+        id: userObj.id,
+        email: userObj.email,
+        full_name: userObj.name,
+        role: userObj.role,
+        status: userObj.status,
+        phone: userObj.phone || '',
+        department: userObj.department || ''
+      }));
+      window.location.replace('index.html');
+    }
+
+    function tryLocalSignIn(email, password) {
+      const localUsers = JSON.parse(localStorage.getItem('wms_local_users') || '[]');
+      // Support both legacy plaintext passwords (migration) and new hashed passwords
+      const doCheck = async () => {
+        const hash = await hashPassword(password);
+        const user = localUsers.find(u =>
+          u.email.toLowerCase() === email.toLowerCase() &&
+          (u.passwordHash === hash || u.password === password) // u.password fallback for old local accounts
+        );
+        if (user) {
+          // Migrate plaintext to hash silently
+          if (user.password && !user.passwordHash) {
+            user.passwordHash = hash;
+            delete user.password;
+            const all = JSON.parse(localStorage.getItem('wms_local_users') || '[]');
+            const idx = all.findIndex(u2 => u2.id === user.id);
+            if (idx !== -1) { all[idx] = user; localStorage.setItem('wms_local_users', JSON.stringify(all)); }
+          }
+          if (user.status === 'pending') {
+            showMsg('Your local account is pending admin approval.', 'warning');
+            setLoading('btn-signin', false);
+            return true;
+          }
+          if (user.status === 'rejected') {
+            showMsg('Your local access request was declined.', 'error');
+            setLoading('btn-signin', false);
+            return true;
+          }
+          logInAsLocalUser(user);
+          return true;
+        }
+        return false;
+      };
+      return doCheck(); // returns a Promise<boolean>
+    }
+
+    // ── Sign In ──────────────────────────────────────────────────
+    async function handleSignIn(e) {
+      e.preventDefault();
+      hideMsg();
+      setLoading('btn-signin', true);
+
+      const email    = document.getElementById('si-email').value.trim();
+      const password = document.getElementById('si-password').value;
+
+      // NOTE: Hardcoded credential bypass removed for security.
+      // Use the local offline registration flow or Supabase auth instead.
+
+      try {
+        if (!sb) {
+          const success = await tryLocalSignIn(email, password);
+          if (success) return;
+          throw new Error('Supabase is not loaded (running offline). Please check your internet connection.');
+        }
+
+        try {
+          const { data, error } = await sb.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+
+          // Check approval status
+          const { data: profile, error: pErr } = await sb.from('user_profiles')
+            .select('status, full_name, role')
+            .eq('id', data.user.id)
+            .maybeSingle();
+
+          if (pErr || !profile) {
+            await sb.auth.signOut();
+            throw new Error('Profile not found. Contact the administrator.');
+          }
+
+          if (profile.status === 'pending') {
+            await sb.auth.signOut();
+            showMsg('Your account is pending admin approval. Please wait.', 'warning');
+            setLoading('btn-signin', false);
+            return;
+          }
+
+          if (profile.status === 'rejected') {
+            await sb.auth.signOut();
+            showMsg('Your access request was declined. Contact the administrator.', 'error');
+            setLoading('btn-signin', false);
+            return;
+          }
+
+          // Log the login activity for audit
+          await sb.from('login_log').insert({
+            user_id: data.user.id,
+            email: data.user.email,
+            full_name: profile.full_name,
+            timestamp: new Date().toISOString(),
+            event: 'login'
+          }).catch(() => {}); // non-blocking
+
+          window.location.replace('index.html');
+        } catch (sbErr) {
+          const success = await tryLocalSignIn(email, password);
+          if (success) return;
+          throw sbErr;
+        }
+      } catch (err) {
+        showMsg(err.message || 'Sign in failed. Check your email and password.');
+        setLoading('btn-signin', false);
+      }
+    }
+
+    // ── Sign Up / Request Access ─────────────────────────────────
+    async function handleSignUp(e) {
+      e.preventDefault();
+      hideMsg();
+
+      const name   = document.getElementById('su-name').value.trim();
+      const email  = document.getElementById('su-email').value.trim();
+      const pw     = document.getElementById('su-password').value;
+      const pw2    = document.getElementById('su-password2').value;
+
+      if (pw !== pw2) { showMsg('Passwords do not match.'); return; }
+      if (pw.length < 8) { showMsg('Password must be at least 8 characters.'); return; }
+
+      setLoading('btn-signup', true);
+
+      try {
+        if (!sb) {
+          if (confirm("Supabase is not loaded (running offline).\n\nWould you like to register this account locally on this device instead? (Offline Bypass Mode)")) {
+            registerLocalUser(name, email, pw);
+            return;
+          }
+          throw new Error('Supabase is not loaded (running offline). Cannot register a new user.');
+        }
+
+        // Check if this is the very first user — they become admin
+        const { count } = await sb.from('user_profiles')
+          .select('id', { count: 'exact', head: true });
+
+        const isFirstUser = count === 0;
+
+        // Create auth user
+        const { data, error } = await sb.auth.signUp({ email, password: pw,
+          options: { data: { full_name: name } }
+        });
+        if (error) {
+          if (error.message && error.message.includes('Signups not allowed')) {
+            if (confirm("Email signups are disabled in your Supabase Auth project configuration.\n\nWould you like to register this account locally on this device instead? (Offline Bypass Mode)")) {
+              registerLocalUser(name, email, pw);
+              return;
+            }
+          }
+          throw error;
+        }
+
+        // Insert profile row
+        const role   = isFirstUser ? 'Administrator' : 'Operator';
+        const status = isFirstUser ? 'approved'      : 'pending';
+
+        const { error: pErr } = await sb.from('user_profiles').insert({
+          id:        data.user.id,
+          email:     email,
+          full_name: name,
+          role:      role,
+          status:    status,
+          created_at: new Date().toISOString()
+        });
+        if (pErr) throw pErr;
+
+        if (isFirstUser) {
+          window.location.replace('index.html');
+        } else {
+          await sb.from('admin_notifications').insert({
+            type: 'new_user_request',
+            message: `New access request from ${name} (${email})`,
+            user_id: data.user.id,
+            read: false,
+            timestamp: new Date().toISOString()
+          }).catch(() => {});
+
+          document.getElementById('form-signup').style.display = 'none';
+          document.getElementById('pending-notice').style.display = 'block';
+          showMsg('Request submitted. Awaiting admin approval.', 'success');
+
+          await sb.auth.signOut();
+        }
+      } catch (err) {
+        if (err.message && err.message.includes('Signups not allowed')) {
+          if (confirm("Email signups are disabled in your Supabase Auth project configuration.\n\nWould you like to register this account locally on this device instead? (Offline Bypass Mode)")) {
+            registerLocalUser(name, email, pw);
+            return;
+          }
+        }
+        showMsg(err.message || 'Sign up failed. Try again.');
+        setLoading('btn-signup', false);
+      }
+    }
+  </script>
+</body>
+</html>

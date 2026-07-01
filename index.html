@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Warehouse Management System - Premium, Audit-Ready WMS Interface">
+  <title>Warehouse Management System</title>
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Chart.js, JsBarcode, XLSX -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Supabase (loaded first — db.js and auth.js need it) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.8/dist/umd/supabase.js"></script>
+  <!-- db.js creates window._sb shared client — must come before auth.js -->
+  <script src="db.js"></script>
+  <!-- Auth guard — redirects to login.html if not authenticated -->
+  <script src="auth.js"></script>
+</head>
+<body>
+
+  <!-- SIDEBAR NAVIGATION -->
+  <aside class="sidebar">
+    <!-- Brand / Logo -->
+    <div class="sidebar-brand">
+      <div class="brand-icon">
+        <i class="fa-solid fa-warehouse"></i>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">Warehouse WMS</div>
+        <div class="brand-sub">Inventory Control</div>
+      </div>
+    </div>
+
+    <ul class="menu">
+      <li>
+        <a href="#" class="active" data-view="view-dashboard" data-label="Dashboard">
+          <div class="nav-icon"><i class="fa-solid fa-chart-line"></i></div>
+          <span class="nav-label">Dashboard</span>
+        </a>
+      </li>
+      <li>
+        <a href="#" data-view="view-inventory" data-label="Inventory">
+          <div class="nav-icon"><i class="fa-solid fa-boxes-stacked"></i></div>
+          <span class="nav-label">Inventory</span>
+        </a>
+      </li>
+      <li>
+        <a href="#" data-view="view-stock-in" data-label="Stock In">
+          <div class="nav-icon"><i class="fa-solid fa-arrow-down-long"></i></div>
+          <span class="nav-label">Stock In</span>
+        </a>
+      </li>
+      <li>
+        <a href="#" data-view="view-stock-out" data-label="Stock Out">
+          <div class="nav-icon"><i class="fa-solid fa-arrow-up-long"></i></div>
+          <span class="nav-label">Stock Out</span>
+        </a>
+      </li>
+      <li class="admin-only">
+        <a href="#" data-view="view-barcode" data-label="Barcode &amp; Scan">
+          <div class="nav-icon"><i class="fa-solid fa-barcode"></i></div>
+          <span class="nav-label">Barcode &amp; Scan</span>
+        </a>
+      </li>
+      <li class="admin-only">
+        <a href="#" data-view="view-reports" data-label="Reports">
+          <div class="nav-icon"><i class="fa-solid fa-chart-pie"></i></div>
+          <span class="nav-label">Reports</span>
+        </a>
+      </li>
+      <li class="admin-only">
+        <a href="#" data-view="view-approvals" data-label="User Approvals">
+          <div class="nav-icon"><i class="fa-solid fa-user-check"></i></div>
+          <span class="nav-label">User Approvals</span>
+        </a>
+      </li>
+      <li class="admin-only">
+        <a href="#" data-view="view-activity-log" data-label="Activity Log">
+          <div class="nav-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+          <span class="nav-label">Activity Log</span>
+        </a>
+      </li>
+      <li class="admin-only">
+        <a href="#" data-view="view-settings" data-label="Settings">
+          <div class="nav-icon"><i class="fa-solid fa-gear"></i></div>
+          <span class="nav-label">Settings</span>
+        </a>
+      </li>
+    </ul>
+
+    <!-- Active User Status -->
+    <div class="sidebar-footer">
+      <div class="user-profile-badge">
+        <div class="user-avatar-small" id="global-profile-initials">JP</div>
+        <div class="user-info-small">
+          <span class="name" id="global-header-username">John Doe</span>
+          <span class="role" id="global-header-role">Warehouse Admin</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTAINER -->
+  <main class="main">
+    
+    <!-- TOP HEADER -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="sidebar-toggle-btn" id="sidebar-toggle" title="Toggle sidebar">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+        <h1 id="header-warehouse-title">Warehouse Dashboard</h1>
+      </div>
+
+      <div class="top-actions">
+        <!-- Search bar triggers redirection to Mock Scanner -->
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="topbar-search" placeholder="Quick SKU search..." onkeypress="if(event.key === 'Enter') { document.querySelector('[data-view=\'view-barcode\']').click(); document.getElementById('mock-scan-input').value = this.value; document.getElementById('mock-scan-btn').click(); this.value = ''; }">
+        </div>
+
+        <!-- Light/Dark Mode toggler -->
+        <button class="theme-toggle-btn" id="theme-toggle" title="Toggle theme">
+          <i class="fa-solid fa-sun"></i>
+        </button>
+
+        <!-- Profile button -->
+        <button class="theme-toggle-btn" id="profile-btn" title="My Profile" onclick="openProfileModal()">
+          <i class="fa-solid fa-circle-user"></i>
+        </button>
+
+        <!-- Logout -->
+        <button class="theme-toggle-btn" id="logout-btn" title="Sign Out" onclick="WMSAuth.signOut()">
+          <i class="fa-solid fa-right-from-bracket"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- All views live inside .page-content for uniform padding -->
+    <div class="page-content">
+
+    <!-- VIEW 1: DASHBOARD -->
+    <section id="view-dashboard" class="page-view active">
+      <!-- KPI Cards Grid -->
+      <div class="cards">
+        <div class="card">
+          <div class="card-header-flex">
+            <div class="title">Total Items</div>
+            <div class="icon"><i class="fa-solid fa-box"></i></div>
+          </div>
+          <div class="value" id="kpi-total-sku">0</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header-flex">
+            <div class="title">Total Stock Quantity</div>
+            <div class="icon"><i class="fa-solid fa-warehouse"></i></div>
+          </div>
+          <div class="value" id="kpi-total-stock">0</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header-flex">
+            <div class="title">Low Stock Items</div>
+            <div class="icon" style="background: rgba(245, 158, 11, 0.1); color: #fbbf24;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+          </div>
+          <div class="value" id="kpi-low-stock" style="color: var(--warning-color);">0</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header-flex">
+            <div class="title">Out of Stock Items</div>
+            <div class="icon" style="background: rgba(239, 68, 68, 0.1); color: #f87171;"><i class="fa-solid fa-circle-xmark"></i></div>
+          </div>
+          <div class="value" id="kpi-out-of-stock" style="color: var(--danger-color);">0</div>
+        </div>
+      </div>
+
+      <!-- Dashboard Widgets Layout -->
+      <div class="dashboard-grid">
+        <!-- Live Action Feed -->
+        <div class="widget">
+          <div class="widget-header">
+            <h3>Recent Warehouse Activity</h3>
+            <span style="font-size: 12px; color: var(--text-muted);">Real-time Audit Trail</span>
+          </div>
+          <div class="feed-list" id="dashboard-transaction-feed">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Quick Low Stock Alert Summary -->
+        <div class="widget">
+          <div class="widget-header">
+            <h3>Low Stock Watchlist</h3>
+          </div>
+          <div style="overflow-y: auto; max-height: 300px;">
+            <table style="width: 100%;">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Name</th>
+                  <th>Loc</th>
+                  <th>Qty</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="dashboard-low-stock-list">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 2: INVENTORY -->
+    <section id="view-inventory" class="page-view">
+      <div class="table-section">
+        <div class="table-header">
+          <h2>Inventory Management</h2>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <label for="xlsx-import-file" class="btn btn-secondary" style="cursor: pointer; margin-bottom: 0; display: inline-flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-file-excel" style="color: #10b981;"></i> Import (CSV/Excel)
+            </label>
+            <input type="file" id="xlsx-import-file" accept=".csv, .xls, .xlsx, .xlsm" style="display: none;">
+            
+            <button class="btn" onclick="openAddForm()">
+              <i class="fa-solid fa-plus"></i>
+              Add Product
+            </button>
+          </div>
+        </div>
+
+        <!-- Filtering Tools -->
+        <div class="filters-wrapper" style="align-items: center;">
+          <div class="search-box" style="margin-bottom: 0;">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="inv-search" placeholder="Search SKU or Name...">
+          </div>
+          
+          <select id="filter-category" class="filter-select">
+            <option value="all">All Categories</option>
+          </select>
+
+          <select id="filter-location" class="filter-select">
+            <option value="all">All Locations</option>
+          </select>
+
+          <select id="filter-status" class="filter-select">
+            <option value="all">All Stock Status</option>
+            <option value="in-stock">In Stock</option>
+            <option value="low-stock">Low Stock</option>
+            <option value="out-of-stock">Out of Stock</option>
+          </select>
+
+          <label class="filter-checkbox-label" style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; margin-left: 10px;">
+            <input type="checkbox" id="hide-zero-stock" checked style="width:16px; height:16px; accent-color: var(--accent); cursor: pointer;">
+            <span>Hide Zero Stock</span>
+          </label>
+
+          <!-- Export current filtered view as CSV -->
+          <button class="btn btn-secondary inv-export-btn" onclick="exportFilteredCSV()" title="Export filtered results to CSV">
+            <i class="fa-solid fa-file-csv" style="color:#10b981;"></i> Export CSV
+          </button>
+        </div>
+
+        <!-- Inventory count + virtual scroll container -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:13px; color:var(--text-muted);">
+          <span id="inventory-count-label">Loading...</span>
+          <span style="font-size:12px; color:var(--text-muted);"><i class="fa-solid fa-arrow-down-up" style="margin-right:4px;"></i>Scroll to browse all products</span>
+        </div>
+        <div id="inventory-scroll-container" style="overflow-y:auto; max-height:520px; border:1px solid var(--border-color); border-radius:var(--border-radius-md);">
+          <table style="width:100%; border-collapse:separate; border-spacing:0;">
+            <thead style="position:sticky; top:0; z-index:10;">
+              <tr>
+                <th class="sortable-header" data-sort="sku">SKU / Item Code <i class="fa-solid fa-sort"></i></th>
+                <th class="sortable-header" data-sort="name">Item Name <i class="fa-solid fa-sort"></i></th>
+                <th class="sortable-header" data-sort="category">Category <i class="fa-solid fa-sort"></i></th>
+                <th class="sortable-header" data-sort="location">Warehouse Location <i class="fa-solid fa-sort"></i></th>
+                <th class="sortable-header" data-sort="stock_on_hand">Stock On Hand <i class="fa-solid fa-sort"></i></th>
+                <th class="sortable-header" data-sort="reserved_stock">Reserved <i class="fa-solid fa-sort"></i></th>
+                <th class="sortable-header" data-sort="available_stock">Available <i class="fa-solid fa-sort"></i></th>
+                <th class="sortable-header" data-sort="reorder_level">Reorder <i class="fa-solid fa-sort"></i></th>
+                <th class="sortable-header" data-sort="price">Unit Price <i class="fa-solid fa-sort"></i></th>
+                <th class="sortable-header" data-sort="status">Status <i class="fa-solid fa-sort"></i></th>
+                <th class="sortable-header" data-sort="updated_at">Last Updated <i class="fa-solid fa-sort"></i></th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <!-- Top spacer pushes rendered rows to the correct scroll offset -->
+            <tbody id="vs-spacer-top-body"><tr id="vs-spacer-top" style="height:0px;"><td colspan="12" style="padding:0;border:none;"></td></tr></tbody>
+            <!-- Only the visible slice of rows is rendered here by renderVirtualRows() -->
+            <tbody id="inventory-table-body"></tbody>
+            <!-- Bottom spacer maintains total scrollable height -->
+            <tbody id="vs-spacer-bottom-body"><tr id="vs-spacer-bottom" style="height:0px;"><td colspan="12" style="padding:0;border:none;"></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 3: STOCK IN -->
+    <section id="view-stock-in" class="page-view">
+      <div class="transaction-split-layout">
+        <!-- Stock In Form -->
+        <div class="widget">
+          <div class="widget-header">
+            <h3>Log Stock Intake (Stock In)</h3>
+          </div>
+          
+          <div id="stock-in-msg-container"></div>
+
+          <form id="stock-in-form" class="wms-form">
+            <div class="form-group">
+              <label for="stock-in-sku">Type / Select SKU</label>
+              <input type="text" id="stock-in-sku" list="stock-in-sku-list" placeholder="Type SKU..." autocomplete="off" required>
+              <datalist id="stock-in-sku-list"></datalist>
+            </div>
+
+            <div class="form-group">
+              <label for="stock-in-location">Warehouse Location Rack</label>
+              <select id="stock-in-location" required>
+                <!-- Settings Locations -->
+              </select>
+            </div>
+
+            <!-- Dynamic Product Info Card -->
+            <div class="form-group form-group-full" id="stock-in-details"></div>
+
+            <div class="form-group">
+              <label for="stock-in-qty">Quantity to Add</label>
+              <input type="number" id="stock-in-qty" placeholder="e.g. 50" min="1" required>
+            </div>
+
+            <div class="form-group">
+              <label for="stock-in-price">Unit Price (₱)</label>
+              <input type="number" id="stock-in-price" placeholder="e.g. 250.00" min="0" step="0.01">
+            </div>
+
+            <div class="form-group form-group-full">
+              <label for="stock-in-notes">Intake Notes</label>
+              <textarea id="stock-in-notes" placeholder="Specify supply details, supplier, damages check..."></textarea>
+            </div>
+
+            <div class="form-group-full form-actions">
+              <button type="submit" class="btn"><i class="fa-solid fa-plus"></i> Confirm Stock In</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- History list -->
+        <div class="widget" style="overflow: hidden;">
+          <div class="widget-header">
+            <h3>Recent Intake Receipts</h3>
+          </div>
+          <!-- SKU search for intake history -->
+          <div class="search-box" style="margin-bottom:12px;">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="stock-in-history-search" placeholder="Filter by SKU..." autocomplete="off"
+              style="font-family:'JetBrains Mono',monospace;letter-spacing:0.3px;">
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>SKU</th>
+                  <th>Product</th>
+                  <th>Qty / Location</th>
+                  <th>Operator</th>
+                </tr>
+              </thead>
+              <tbody id="stock-in-history-tbody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 4: STOCK OUT -->
+    <section id="view-stock-out" class="page-view">
+      <div class="transaction-split-layout">
+        <!-- Stock Out Form -->
+        <div class="widget">
+          <div class="widget-header">
+            <h3>Log Stock Dispatch (Stock Out)</h3>
+          </div>
+          
+          <div id="stock-out-msg-container"></div>
+
+          <form id="stock-out-form" class="wms-form">
+            <div class="form-group">
+              <label for="stock-out-sku">Type / Select SKU</label>
+              <input type="text" id="stock-out-sku" list="stock-out-sku-list" placeholder="Type SKU..." autocomplete="off" required>
+              <datalist id="stock-out-sku-list"></datalist>
+            </div>
+
+            <div class="form-group">
+              <label for="stock-out-location">Dispatch From Location</label>
+              <select id="stock-out-location">
+                <option value="">Select a SKU first...</option>
+              </select>
+            </div>
+
+            <!-- Dynamic Product Info Card -->
+            <div class="form-group form-group-full" id="stock-out-details"></div>
+
+            <div class="form-group">
+              <label for="stock-out-qty">Quantity to Remove</label>
+              <input type="number" id="stock-out-qty" placeholder="e.g. 10" min="1" required>
+            </div>
+
+            <div class="form-group">
+              <label for="stock-out-price">Unit Price (₱)</label>
+              <input type="number" id="stock-out-price" placeholder="e.g. 250.00" min="0" step="0.01">
+            </div>
+
+            <div class="form-group form-group-full">
+              <label for="stock-out-notes">Dispatch Notes</label>
+              <textarea id="stock-out-notes" placeholder="Specify destination, customer, transfer reason..."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="stock-out-doc-ref">Document Reference (DR / Transfer No.)</label>
+              <input type="text" id="stock-out-doc-ref" placeholder="e.g. DR-00123">
+            </div>
+
+            <div class="form-group-full form-actions">
+              <button type="submit" class="btn btn-danger" style="background: rgb(239, 68, 68); box-shadow: 0 4px 14px rgba(239, 68, 68, 0.2);"><i class="fa-solid fa-minus"></i> Confirm Stock Out</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- History list -->
+        <div class="widget" style="overflow: hidden;">
+          <div class="widget-header">
+            <h3>Recent Dispatch Shipments</h3>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>SKU</th>
+                  <th>Product</th>
+                  <th>Qty</th>
+                  <th>Operator</th>
+                </tr>
+              </thead>
+              <tbody id="stock-out-history-tbody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 5: BARCODE & SCANNER -->
+    <section id="view-barcode" class="page-view">
+      <div class="barcode-layout">
+        <!-- Print Barcodes List -->
+        <div class="widget">
+          <div class="widget-header">
+            <h3>Generated Inventory Barcodes</h3>
+            <span style="font-size: 12px; color: var(--text-muted);">Click a card to fill the scanner</span>
+          </div>
+          <div class="search-box" style="margin-bottom: 16px;">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="barcode-search" placeholder="Search SKU or product name...">
+          </div>
+          <div class="barcode-list" id="barcode-cards-grid">
+            <!-- Dynamically populated on search -->
+          </div>
+        </div>
+
+        <!-- Barcode Scanner Simulator -->
+        <div class="scanner-widget">
+          <div class="widget-header">
+            <h3>Scanner Simulator</h3>
+          </div>
+          
+          <div class="scan-window">
+            <i class="fa-solid fa-barcode" style="font-size: 80px; color: var(--text-muted);"></i>
+            <span style="font-size:12px; color: var(--text-secondary);">Type SKU below or click a barcode card</span>
+          </div>
+
+          <div class="scanner-input-section">
+            <div class="search-box" style="margin: 0 auto; width: 100%;">
+              <i class="fa-solid fa-barcode"></i>
+              <input type="text" id="mock-scan-input" placeholder="Type SKU or click card to Scan...">
+            </div>
+            <button class="btn" id="mock-scan-btn" style="width: 100%; justify-content: center;">
+              <i class="fa-solid fa-qrcode"></i> Scan Code
+            </button>
+          </div>
+
+          <!-- Output of simulator -->
+          <div id="mock-scan-result">
+            <!-- Matches render here -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 6: REPORTS & EXPORTS -->
+    <section id="view-reports" class="page-view">
+      <div class="table-section" style="margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2>Analytics &amp; File Exports</h2>
+          <p style="color: var(--text-muted); font-size: 13px; margin-top: 5px;">Download warehouse summaries for external bookkeeping audits.</p>
+        </div>
+        <button class="btn btn-secondary" onclick="exportJSON()"><i class="fa-solid fa-file-code" style="color: #3b82f6;"></i> Database Backup (JSON)</button>
+      </div>
+
+      <!-- KPI Cards Grid for Reports -->
+      <div class="cards" style="margin-bottom: 24px;">
+        <div class="card">
+          <div class="card-header-flex">
+            <div class="title">Total SKU Categories</div>
+            <div class="icon"><i class="fa-solid fa-tags"></i></div>
+          </div>
+          <div class="value" id="kpi-reports-skus">0</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header-flex">
+            <div class="title">Total Units Handled</div>
+            <div class="icon"><i class="fa-solid fa-cubes"></i></div>
+          </div>
+          <div class="value" id="kpi-reports-units">0</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header-flex">
+            <div class="title">Total Value (₱)</div>
+            <div class="icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;"><i class="fa-solid fa-coins"></i></div>
+          </div>
+          <div class="value" id="kpi-reports-value" style="color: var(--success-color);">₱0.00</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header-flex">
+            <div class="title">Storage Locations</div>
+            <div class="icon" style="background: rgba(6, 182, 212, 0.1); color: #06b6d4;"><i class="fa-solid fa-location-dot"></i></div>
+          </div>
+          <div class="value" id="kpi-reports-locations">0</div>
+        </div>
+      </div>
+
+      <!-- Export filter panel: filter before you download -->
+      <div class="export-filter-panel" style="margin-bottom: 24px;">
+        <span class="filter-label"><i class="fa-solid fa-sliders" style="margin-right:6px;"></i>Export Filters</span>
+
+        <select id="export-filter-category" class="filter-select">
+          <option value="all">All Categories</option>
+        </select>
+
+        <select id="export-filter-location" class="filter-select">
+          <option value="all">All Locations</option>
+        </select>
+
+        <select id="export-filter-status" class="filter-select">
+          <option value="all">All Stock Status</option>
+          <option value="in-stock">In Stock</option>
+          <option value="low-stock">Low Stock</option>
+          <option value="out-of-stock">Out of Stock</option>
+        </select>
+
+        <div class="export-actions">
+          <button class="btn btn-secondary" onclick="exportReportCSV()">
+            <i class="fa-solid fa-file-csv" style="color:#10b981;"></i> Export CSV
+          </button>
+        </div>
+      </div>
+
+      <div class="reports-layout" style="margin-bottom: 24px;">
+        <!-- Chart 1: Stock levels -->
+        <div class="widget">
+          <div class="widget-header">
+            <h3>Top 7 Product Stock Volumes</h3>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-stock-levels"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 2: Category distributions -->
+        <div class="widget">
+          <div class="widget-header">
+            <h3>Inventory Allocation by Category</h3>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-category-dist"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Location breakdown table section -->
+      <div class="table-section" style="margin-top: 24px;">
+        <div class="widget-header">
+          <h3>Warehouse Locations Valuation Breakdown</h3>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Location / Bin</th>
+                <th>Unique SKU Types</th>
+                <th>Total Stock Units</th>
+                <th>Valuation (₱)</th>
+                <th>Percentage of Value</th>
+              </tr>
+            </thead>
+            <tbody id="reports-locations-tbody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 7: USER APPROVALS -->
+    <section id="view-approvals" class="page-view">
+      <div class="table-section">
+        <div class="table-header">
+          <h2>Pending Access Requests &amp; Users</h2>
+          <button class="btn btn-secondary" onclick="loadAdminUsers()"><i class="fa-solid fa-rotate"></i> Refresh List</button>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Full Name</th>
+                <th>Email Address</th>
+                <th>Status</th>
+                <th>Assigned Role</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="approvals-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 8: REALTIME ACTIVITY LOG -->
+    <section id="view-activity-log" class="page-view">
+      <div class="table-section">
+        <div class="table-header" style="justify-content: space-between; align-items: center;">
+          <div>
+            <h2>Real-time Audit Trail &amp; Activity Log</h2>
+            <span style="font-size:12px; color: var(--text-muted);"><i class="fa-solid fa-circle-dot" style="color:var(--success-color); animation: pulse 1.8s infinite; margin-right:4px;"></i> Live Updates Enabled</span>
+          </div>
+          <button class="btn btn-secondary" onclick="WMSActivityLog.init()"><i class="fa-solid fa-rotate"></i> Refresh Log</button>
+        </div>
+        
+        <div class="activity-timeline-container" style="max-height: 580px; overflow-y: auto; padding: 15px; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-primary);">
+          <div class="activity-timeline" id="realtime-activity-timeline">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 8: SETTINGS -->
+    <section id="view-settings" class="page-view">
+      <div class="settings-grid">
+        <!-- Settings Side list -->
+        <div class="widget" style="display:flex; flex-direction:column; gap:20px;">
+          <div>
+            <h4 style="margin-bottom: 8px;">Warehouse Taxonomy</h4>
+            <span style="font-size:12px; color: var(--text-muted);">Manage product categories and warehouse bin storage zones.</span>
+          </div>
+
+          <div class="form-group">
+            <label>Categories (Tag List)</label>
+            <div class="list-tags" id="settings-categories-list">
+              <!-- Dynamically populated -->
+            </div>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="new-category-input" placeholder="New category..." style="padding: 8px 12px; font-size:13px; border-radius: var(--border-radius-sm); border:1px solid var(--border-color); background:var(--input-bg); color:var(--text-primary); outline:none; flex-grow:1;">
+              <button class="btn" onclick="addCategorySetting()" style="padding:8px 12px;"><i class="fa-solid fa-plus"></i></button>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top:10px;">
+            <label>Warehouse Storage Bins / Racks</label>
+            <div class="list-tags" id="settings-locations-list">
+              <!-- Dynamically populated -->
+            </div>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="new-location-input" placeholder="New location rack..." style="padding: 8px 12px; font-size:13px; border-radius: var(--border-radius-sm); border:1px solid var(--border-color); background:var(--input-bg); color:var(--text-primary); outline:none; flex-grow:1;">
+              <button class="btn" onclick="addLocationSetting()" style="padding:8px 12px;"><i class="fa-solid fa-plus"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main config controls -->
+        <div class="widget">
+          <div class="widget-header">
+            <h3>General Settings</h3>
+          </div>
+
+          <div id="settings-msg-container"></div>
+
+          <form id="settings-general-form" class="wms-form">
+            <div class="form-group">
+              <label for="set-warehouse-name">Warehouse Identity Name</label>
+              <input type="text" id="set-warehouse-name" required>
+            </div>
+
+            <div class="form-group">
+              <label for="set-low-threshold">Global Low Stock Warning Limit</label>
+              <input type="number" id="set-low-threshold" min="1" required>
+            </div>
+
+            <div class="form-group form-group-full">
+              <label for="set-active-operator">Switch Active Logged-In Operator</label>
+              <select id="set-active-operator" required>
+                <!-- Loaded users -->
+              </select>
+            </div>
+
+            <div class="form-group-full form-actions" style="justify-content: space-between; border-top: 1px solid var(--border-color); padding-top:20px; margin-top:20px;">
+              <button type="button" class="btn btn-secondary btn-danger" onclick="resetDatabaseTrigger()">
+                <i class="fa-solid fa-trash-arrow-up"></i> Factory Reset Database
+              </button>
+              
+              <div style="display:flex; gap: 10px;">
+                <!-- Restore JSON -->
+                <label for="db-restore-file" class="btn btn-secondary" style="cursor:pointer; margin-bottom:0;">
+                  <i class="fa-solid fa-file-import"></i> Restore Backup
+                </label>
+                <input type="file" id="db-restore-file" accept=".json" style="display:none;">
+
+                <button type="submit" class="btn"><i class="fa-solid fa-floppy-disk"></i> Save Settings</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+    </div><!-- /.page-content -->
+  </main>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- Modal 1: Add Product Modal -->
+  <div class="modal-overlay" id="addProductModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add New Inventory Product</h3>
+        <button class="modal-close" onclick="closeAddForm()">&times;</button>
+      </div>
+      <form id="add-product-form" class="wms-form">
+        <div class="form-group">
+          <label for="add-sku">Product SKU (Unique ID)</label>
+          <input type="text" id="add-sku" placeholder="e.g. SKU-1004" required>
+        </div>
+        <div class="form-group">
+          <label for="add-name">Product Name</label>
+          <input type="text" id="add-name" placeholder="e.g. Laser Printer" required>
+        </div>
+        <div class="form-group">
+          <label for="add-category">Category</label>
+          <select id="add-category" required>
+            <!-- Settings Categories -->
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="add-location">Warehouse Location Rack</label>
+          <select id="add-location" required>
+            <!-- Settings Locations -->
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="add-qty">Stock On Hand</label>
+          <input type="number" id="add-qty" placeholder="e.g. 50" min="0" required>
+        </div>
+        <div class="form-group">
+          <label for="add-reserved">Reserved Stock</label>
+          <input type="number" id="add-reserved" placeholder="e.g. 5" min="0" value="0" required>
+        </div>
+        <div class="form-group">
+          <label for="add-min-qty">Reorder Level</label>
+          <input type="number" id="add-min-qty" placeholder="e.g. 15" min="0" required>
+        </div>
+        <div class="form-group">
+          <label for="add-price">Unit Price (₱)</label>
+          <input type="number" id="add-price" placeholder="e.g. 250.00" min="0" step="0.01" value="0">
+        </div>
+        <div class="form-group-full form-actions">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('add-product-form').reset();">Clear Form</button>
+          <button type="button" class="btn btn-secondary btn-danger" onclick="closeAddForm()">Cancel</button>
+          <button type="submit" class="btn">Add Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 2: Edit Product Modal -->
+  <div class="modal-overlay" id="editProductModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Modify Product Details</h3>
+        <button class="modal-close" onclick="closeEditForm()">&times;</button>
+      </div>
+      <form id="edit-product-form" class="wms-form">
+        <div class="form-group">
+          <label>Product SKU</label>
+          <input type="text" id="edit-sku-display" readonly style="opacity: 0.6; cursor: not-allowed;">
+        </div>
+        <div class="form-group">
+          <label for="edit-name">Product Name</label>
+          <input type="text" id="edit-name" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-category">Category</label>
+          <select id="edit-category" required>
+            <!-- Settings Categories -->
+          </select>
+        </div>
+        <div class="form-group-full" style="border-top: 1px solid var(--border-color); padding-top: 15px; margin-top: 5px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <label style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Stock Locations (Max 5)</label>
+            <button type="button" class="btn btn-secondary" id="edit-add-location-btn" style="padding: 6px 12px; font-size: 12px;"><i class="fa-solid fa-plus"></i> Add Location</button>
+          </div>
+          <div id="edit-locations-container" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+            <!-- Dynamically populated rows -->
+          </div>
+          <div class="form-group">
+            <label>Total Stock On Hand (Auto-calculated)</label>
+            <input type="number" id="edit-qty" readonly style="opacity: 0.7; cursor: not-allowed; font-weight: 700; font-family: monospace;">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="edit-reserved">Reserved Stock</label>
+          <input type="number" id="edit-reserved" min="0" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-min-qty">Reorder Level</label>
+          <input type="number" id="edit-min-qty" min="0" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-price">Unit Price (₱)</label>
+          <input type="number" id="edit-price" min="0" step="0.01" value="0">
+        </div>
+        <div class="form-group-full form-actions">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('edit-product-form').reset();">Clear Form</button>
+          <button type="button" class="btn btn-secondary btn-danger" onclick="closeEditForm()">Cancel</button>
+          <button type="submit" class="btn">Update Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- ==================== PROFILE MODAL ==================== -->
+  <div class="modal-overlay" id="profileModal">
+    <div class="modal-content" style="width:560px;max-width:95%;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-circle-user" style="margin-right:8px;color:var(--accent);"></i>My Profile</h3>
+        <button class="modal-close" onclick="closeProfileModal()">&times;</button>
+      </div>
+
+      <!-- Profile tabs -->
+      <div style="display:flex;gap:0;margin-bottom:24px;background:var(--bg-primary);border-radius:10px;padding:4px;">
+        <button class="btn btn-secondary" id="ptab-info" onclick="switchProfileTab('info')"
+          style="flex:1;border-radius:8px;font-size:13px;padding:8px;box-shadow:none;justify-content:center;">
+          <i class="fa-solid fa-id-card" style="margin-right:6px;"></i>Info
+        </button>
+        <button class="btn btn-secondary" id="ptab-password" onclick="switchProfileTab('password')"
+          style="flex:1;border-radius:8px;font-size:13px;padding:8px;box-shadow:none;justify-content:center;">
+          <i class="fa-solid fa-lock" style="margin-right:6px;"></i>Password
+        </button>
+        <button class="btn btn-secondary" id="ptab-admin" onclick="switchProfileTab('admin')"
+          style="flex:1;border-radius:8px;font-size:13px;padding:8px;box-shadow:none;justify-content:center;display:none;">
+          <i class="fa-solid fa-users-gear" style="margin-right:6px;"></i>Users
+        </button>
+      </div>
+
+      <div id="profile-msg" style="margin-bottom:12px;"></div>
+
+      <!-- Tab: Profile Info -->
+      <div id="ppanel-info">
+        <form id="profile-info-form" class="wms-form" onsubmit="saveProfileInfo(event)">
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="text" id="prof-email" readonly style="opacity:0.5;cursor:not-allowed;">
+          </div>
+          <div class="form-group">
+            <label>Role</label>
+            <input type="text" id="prof-role" readonly style="opacity:0.5;cursor:not-allowed;">
+          </div>
+          <div class="form-group">
+            <label for="prof-name">Full Name</label>
+            <input type="text" id="prof-name" required placeholder="Your full name">
+          </div>
+          <div class="form-group">
+            <label for="prof-phone">Phone / Mobile</label>
+            <input type="text" id="prof-phone" placeholder="e.g. +63 912 345 6789">
+          </div>
+          <div class="form-group form-group-full">
+            <label for="prof-dept">Department</label>
+            <input type="text" id="prof-dept" placeholder="e.g. Warehouse Operations">
+          </div>
+          <div class="form-group-full form-actions">
+            <button type="submit" class="btn"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Tab: Change Password -->
+      <div id="ppanel-password" style="display:none;">
+        <form id="profile-pw-form" class="wms-form" onsubmit="saveProfilePassword(event)">
+          <div class="form-group form-group-full">
+            <label for="prof-pw-new">New Password</label>
+            <input type="password" id="prof-pw-new" minlength="8" required placeholder="At least 8 characters">
+          </div>
+          <div class="form-group form-group-full">
+            <label for="prof-pw-confirm">Confirm New Password</label>
+            <input type="password" id="prof-pw-confirm" required placeholder="Repeat new password">
+          </div>
+          <div class="form-group-full form-actions">
+            <button type="submit" class="btn"><i class="fa-solid fa-key"></i> Update Password</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Tab: Admin — User Management -->
+      <div id="ppanel-admin" style="display:none;">
+        <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text-muted);">Manage user accounts and access requests.</span>
+          <button class="btn btn-secondary" onclick="loadAdminUsers()" style="font-size:12px;padding:7px 12px;">
+            <i class="fa-solid fa-rotate"></i> Refresh
+          </button>
+        </div>
+        <div id="admin-users-list" style="max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;">
+          <div style="color:var(--text-muted);text-align:center;padding:20px;">Loading...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main JavaScript Modules -->
+  <script src="db.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
