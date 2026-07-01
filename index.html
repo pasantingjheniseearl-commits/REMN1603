@@ -636,9 +636,15 @@
     <!-- VIEW 7: USER APPROVALS -->
     <section id="view-approvals" class="page-view">
       <div class="table-section">
-        <div class="table-header">
-          <h2>Pending Access Requests &amp; Users</h2>
-          <button class="btn btn-secondary" onclick="loadAdminUsers()"><i class="fa-solid fa-rotate"></i> Refresh List</button>
+        <div class="table-header" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2>Pending Access Requests &amp; Users</h2>
+            <span style="font-size:12px;color:var(--text-muted);">Approve new accounts and manage user roles from one dashboard.</span>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-secondary" onclick="loadAdminUsers()"><i class="fa-solid fa-rotate"></i> Refresh List</button>
+            <button class="btn" onclick="openUserModal()"><i class="fa-solid fa-user-plus"></i> Add Operator</button>
+          </div>
         </div>
 
         <div class="table-container">
@@ -871,6 +877,40 @@
     </div>
   </div>
 
+  <!-- Modal 3: Add Operator Modal -->
+  <div class="modal-overlay" id="addUserModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Register New Operator</h3>
+        <button class="modal-close" onclick="closeUserModal()">&times;</button>
+      </div>
+      <form id="add-user-form" class="wms-form">
+        <div class="form-group">
+          <label for="user-username">Username</label>
+          <input type="text" id="user-username" placeholder="e.g. jdoe" required>
+        </div>
+        <div class="form-group">
+          <label for="user-name">Full Name</label>
+          <input type="text" id="user-name" placeholder="e.g. Juan dela Cruz" required>
+        </div>
+        <div class="form-group">
+          <label for="user-email">Email Address</label>
+          <input type="email" id="user-email" placeholder="you@warehouse.com" required>
+        </div>
+        <div class="form-group">
+          <label for="user-role">Role</label>
+          <select id="user-role" required>
+            <option value="Operator">Operator</option>
+            <option value="Administrator">Administrator</option>
+          </select>
+        </div>
+        <div class="form-group-full form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeUserModal()">Cancel</button>
+          <button type="submit" class="btn">Register Operator</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
 
   <!-- Toast Notification Container -->

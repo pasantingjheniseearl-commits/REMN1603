@@ -1341,9 +1341,16 @@ window.closeUserModal = function() {
   const userModal = document.getElementById('addUserModal');
   if (userModal) {
     userModal.classList.remove('active');
-    document.getElementById('add-user-form').reset();
+    const form = document.getElementById('add-user-form');
+    if (form) form.reset();
   }
 };
+
+async function renderUsersSection() {
+  const approvalsBody = document.getElementById('approvals-table-body');
+  if (!approvalsBody) return;
+  await renderApprovalsSection();
+}
 
 window.quickTransact = function(type, sku) {
   if (type === 'in') {
@@ -1925,7 +1932,7 @@ function setupEventListeners() {
         await WMSDatabase.saveUser({ username, name, email, role });
         closeUserModal();
         showToast(`Successfully registered operator: ${username}`, 'success');
-        await renderUsersSection();
+        await loadAdminUsers();
       } catch (err) {
         showToast(`Error saving operator: ${err.message}`, 'error');
       }
