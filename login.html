@@ -297,7 +297,7 @@
 
   <div class="auth-wrapper">
     <div class="auth-brand">
-      <div class="brand-icon"><i class="fa-solid fa-warehouse"></i></div>
+      <div class="brand-icon"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" width="56" height="56"><circle cx="100" cy="100" r="95" fill="#06b6d4" opacity="0.1" stroke="#06b6d4" stroke-width="2"/><g id="warehouse-left"><rect x="30" y="60" width="70" height="90" fill="#06b6d4" rx="4"/><polygon points="30,60 65,20 100,60" fill="#06b6d4"/><rect x="50" y="100" width="30" height="45" fill="#1a1a1a" rx="2"/><circle cx="78" cy="122" r="2" fill="#fbbf24"/></g><g id="warehouse-right"><rect x="100" y="75" width="60" height="75" fill="#1a1a1a" rx="3"/><g fill="#06b6d4" opacity="0.3"><rect x="110" y="85" width="12" height="12"/><rect x="130" y="85" width="12" height="12"/><rect x="110" y="105" width="12" height="12"/><rect x="130" y="105" width="12" height="12"/><rect x="110" y="125" width="12" height="12"/><rect x="130" y="125" width="12" height="12"/></g></g><rect x="30" y="155" width="130" height="3" fill="#06b6d4" rx="1.5"/><g id="stacks" opacity="0.6"><rect x="145" y="130" width="8" height="8" fill="#06b6d4"/><rect x="145" y="140" width="8" height="8" fill="#1a1a1a"/><rect x="145" y="150" width="8" height="8" fill="#06b6d4"/></g></svg></div>
       <h1>Warehouse WMS</h1>
       <p>Inventory Control System</p>
     </div>
@@ -366,6 +366,7 @@
             <div class="input-wrap">
               <i class="fa-solid fa-lock"></i>
               <input type="password" id="su-password2" placeholder="Repeat your password" required autocomplete="new-password">
+              <button type="button" class="toggle-pw" onclick="togglePw('su-password2',this)"><i class="fa-solid fa-eye"></i></button>
             </div>
           </div>
           <button type="submit" class="btn-auth" id="btn-signup">
