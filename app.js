@@ -702,9 +702,93 @@ async function renderStockOutHistoryTable() {
 
 // Barcodes Generator section — cards only appear when a search query is typed
 async function renderBarcodeSection() {
-  // Initialize barcode list and preview
-  await renderBarcodeList();
-  await generateBarcodePreview('SAMPLE001');
+  const products = await getCachedProducts();
+  const barcodeGrid = document.getElementById('barcode-cards-grid');
+  const barcodeSearch = document.getElementById('barcode-search');
+  if (!barcodeGrid) return;
+
+  // Wire up search input (once)
+  if (barcodeSearch && !barcodeSearch.dataset.wired) {
+    barcodeSearch.dataset.wired = '1';
+    barcodeSearch.addEventListener('input', () => renderBarcodeCards(products));
+  }
+
+  // Start with empty grid — show placeholder
+  barcodeGrid.innerHTML = `
+    <div id="barcode-empty-hint" style="grid-column:1/-1; text-align:center; color:var(--text-muted); padding:30px 0; font-size:14px;">
+      <i class="fa-solid fa-magnifying-glass" style="font-size:28px; margin-bottom:10px; display:block; opacity:0.4;"></i>
+      Type a SKU or product name above to show barcodes.
+    </div>
+  `;
+}
+
+function renderBarcodeCards(products) {
+  const barcodeGrid = document.getElementById('barcode-cards-grid');
+  const barcodeSearch = document.getElementById('barcode-search');
+  if (!barcodeGrid) return;
+
+  const query = (barcodeSearch ? barcodeSearch.value : '').trim().toLowerCase();
+
+  if (!query) {
+    barcodeGrid.innerHTML = `
+      <div id="barcode-empty-hint" style="grid-column:1/-1; text-align:center; color:var(--text-muted); padding:30px 0; font-size:14px;">
+        <i class="fa-solid fa-magnifying-glass" style="font-size:28px; margin-bottom:10px; display:block; opacity:0.4;"></i>
+        Type a SKU or product name above to show barcodes.
+      </div>
+    `;
+    return;
+  }
+
+  const matched = products.filter(p =>
+    p.sku.toLowerCase().includes(query) || p.name.toLowerCase().includes(query)
+  );
+
+  if (matched.length === 0) {
+    barcodeGrid.innerHTML = `
+      <div style="grid-column:1/-1; text-align:center; color:var(--text-muted); padding:30px 0; font-size:14px;">
+        No products match "<strong>${query}</strong>".
+      </div>
+    `;
+    return;
+  }
+
+  barcodeGrid.innerHTML = matched.map(p => `
+    <div class="barcode-card" data-sku="${p.sku}">
+      <div class="barcode-card-sku">${p.sku}</div>
+      <div class="barcode-card-name">${p.name}</div>
+      <canvas id="bc-canvas-${p.sku}"></canvas>
+      <div style="font-size:11px; color:var(--text-muted);"><i class="fa-solid fa-location-dot" style="margin-right:4px;"></i>${formatLocationDisplay(p.location, p.stock_on_hand)}</div>
+    </div>
+  `).join('');
+
+  // Render barcodes onto each canvas
+  matched.forEach(p => {
+    const canvas = document.getElementById(`bc-canvas-${p.sku}`);
+    if (!canvas) return;
+    if (window.JsBarcode) {
+      try {
+        window.JsBarcode(canvas, p.sku, {
+          format: 'CODE128', width: 1.5, height: 40,
+          displayValue: false, background: '#ffffff',
+          lineColor: '#000000', margin: 5
+        });
+      } catch (err) { drawFallbackBarcode(canvas, p.sku); }
+    } else {
+      drawFallbackBarcode(canvas, p.sku);
+    }
+  });
+
+  // Click card → auto-fill scanner
+  barcodeGrid.querySelectorAll('.barcode-card').forEach(card => {
+    card.addEventListener('click', async () => {
+      const sku = card.getAttribute('data-sku');
+      const scannerInput = document.getElementById('mock-scan-input');
+      if (scannerInput) {
+        scannerInput.value = sku;
+        await triggerMockScan();
+      }
+    });
+  });
 }
 
 function drawFallbackBarcode(canvas, text) {
@@ -766,181 +850,6 @@ async function triggerMockScan() {
     showToast(`Scanner Error: SKU ${sku} not found`, 'error');
   }
   input.value = ''; // Reset scanner input
-}
-
-// ── BARCODE GENERATION & PREVIEW ──
-async function generateBarcodePreview(sku) {
-  const format = document.getElementById('barcode-format')?.value || 'CODE128';
-  const width = parseFloat(document.getElementById('barcode-width')?.value || '1');
-  const height = parseInt(document.getElementById('barcode-height')?.value || '80');
-  const displayValue = document.getElementById('barcode-displayValue')?.checked || true;
-  const margin = parseInt(document.getElementById('barcode-margin')?.value || '5');
-  const fontSize = parseInt(document.getElementById('barcode-fontSize')?.value || '14');
-
-  try {
-    JsBarcode(`#barcode-preview-svg`, sku, {
-      format: format,
-      width: width,
-      height: height,
-      displayValue: displayValue,
-      margin: margin,
-      fontSize: fontSize,
-      lineColor: '#000000'
-    });
-  } catch (err) {
-    console.log('Barcode preview error:', err);
-  }
-}
-
-async function renderBarcodeList() {
-  const products = await getCachedProducts();
-  const searchTerm = (document.getElementById('barcode-search')?.value || '').toLowerCase();
-
-  let filtered = products;
-  if (searchTerm) {
-    filtered = products.filter(p => 
-      p.sku.toLowerCase().includes(searchTerm) ||
-      (p.product_name && p.product_name.toLowerCase().includes(searchTerm))
-    );
-  }
-
-  const grid = document.getElementById('barcode-cards-grid');
-  if (!grid) return;
-
-  grid.innerHTML = filtered.map(product => `
-    <div class="barcode-card">
-      <input type="checkbox" class="barcode-select" data-sku="${product.sku}" data-name="${product.product_name || 'Unnamed'}">
-      <div style="margin-top: 8px;">
-        <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px; font-family: 'JetBrains Mono', monospace;">${product.sku}</div>
-        <div style="font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px;">
-          ${product.product_name || 'Unnamed'}
-        </div>
-        <svg class="barcode-preview-mini" data-sku="${product.sku}"></svg>
-      </div>
-    </div>
-  `).join('');
-
-  // Regenerate mini barcodes
-  filtered.forEach(product => {
-    try {
-      const format = document.getElementById('barcode-format')?.value || 'CODE128';
-      JsBarcode(`svg.barcode-preview-mini[data-sku="${product.sku}"]`, product.sku, {
-        format: format,
-        width: 0.8,
-        height: 50,
-        displayValue: false,
-        margin: 2
-      });
-    } catch (err) {
-      console.log('Mini barcode error:', err);
-    }
-  });
-
-  // Add click listeners to barcode cards
-  grid.querySelectorAll('.barcode-card').forEach(card => {
-    card.addEventListener('click', function(e) {
-      if (e.target.type !== 'checkbox') {
-        const checkbox = this.querySelector('input[type="checkbox"]');
-        checkbox.checked = !checkbox.checked;
-      }
-    });
-  });
-}
-
-function selectAllBarcodes() {
-  document.querySelectorAll('.barcode-select').forEach(checkbox => {
-    checkbox.checked = true;
-  });
-}
-
-function deselectAllBarcodes() {
-  document.querySelectorAll('.barcode-select').forEach(checkbox => {
-    checkbox.checked = false;
-  });
-}
-
-function printSelectedBarcodes() {
-  const selected = document.querySelectorAll('.barcode-select:checked');
-  if (selected.length === 0) {
-    showToast('Please select at least one barcode to print', 'warning');
-    return;
-  }
-
-  const printWindow = window.open('', '', 'width=1000,height=800');
-  const barcodes = Array.from(selected).map(checkbox => ({
-    sku: checkbox.getAttribute('data-sku'),
-    name: checkbox.getAttribute('data-name')
-  }));
-
-  const format = document.getElementById('barcode-format')?.value || 'CODE128';
-  const height = parseInt(document.getElementById('barcode-height')?.value || '80');
-  const displayValue = document.getElementById('barcode-displayValue')?.checked || true;
-  const margin = parseInt(document.getElementById('barcode-margin')?.value || '5');
-
-  let html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Print Barcodes</title>
-      <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
-      <style>
-        body { font-family: Arial, sans-serif; margin: 10px; }
-        .barcode-item { 
-          display: inline-block; 
-          margin: 10px; 
-          padding: 10px; 
-          border: 1px solid #ddd; 
-          page-break-inside: avoid;
-          text-align: center;
-        }
-        .barcode-label { font-size: 12px; margin-top: 5px; font-weight: bold; }
-        .barcode-product { font-size: 10px; color: #666; margin-top: 3px; }
-        @media print { .no-print { display: none; } }
-      </style>
-    </head>
-    <body>
-      <h2 class="no-print">Print Barcodes - Format: ${format}</h2>
-      <div id="print-content">
-  `;
-
-  barcodes.forEach(barcode => {
-    html += `
-      <div class="barcode-item">
-        <svg id="barcode-${barcode.sku}"></svg>
-        <div class="barcode-label">${barcode.sku}</div>
-        <div class="barcode-product">${barcode.name.substring(0, 25)}</div>
-      </div>
-    `;
-  });
-
-  html += `
-      </div>
-      <script>
-        async function generateAllBarcodes() {
-  `;
-
-  barcodes.forEach(barcode => {
-    html += `
-          JsBarcode('#barcode-${barcode.sku}', '${barcode.sku}', {
-            format: '${format}',
-            height: ${height},
-            displayValue: ${displayValue},
-            margin: ${margin}
-          });
-    `;
-  });
-
-  html += `
-          setTimeout(() => window.print(), 500);
-        }
-        generateAllBarcodes();
-      <\/script>
-    </body>
-    </html>
-  `;
-
-  printWindow.document.write(html);
-  printWindow.document.close();
 }
 
 // Reports & Chart rendering
@@ -1993,7 +1902,6 @@ function setupEventListeners() {
   // Barcode Scanner Form triggers
   const scanBtn = document.getElementById('mock-scan-btn');
   const scanInput = document.getElementById('mock-scan-input');
-  const scanClearBtn = document.getElementById('mock-scan-clear');
   
   if (scanBtn) scanBtn.addEventListener('click', async () => await triggerMockScan());
   if (scanInput) {
@@ -2001,51 +1909,6 @@ function setupEventListeners() {
       if (e.key === 'Enter') {
         await triggerMockScan();
       }
-    });
-  }
-  if (scanClearBtn) {
-    scanClearBtn.addEventListener('click', () => {
-      scanInput.value = '';
-      const resultBox = document.getElementById('mock-scan-result');
-      if (resultBox) resultBox.innerHTML = '';
-    });
-  }
-
-  // ── Barcode Format Settings ──
-  const barcodeFormatSelect = document.getElementById('barcode-format');
-  const barcodeWidthSlider = document.getElementById('barcode-width');
-  const barcodeHeightInput = document.getElementById('barcode-height');
-  const barcodeDisplayValue = document.getElementById('barcode-displayValue');
-  const barcodeMarginInput = document.getElementById('barcode-margin');
-  const barcodeFontSizeInput = document.getElementById('barcode-fontSize');
-
-  const updateBarcodePreview = () => {
-    if (typeof JsBarcode === 'undefined') {
-      console.log('JsBarcode not yet loaded');
-      return;
-    }
-    const previewSku = 'SAMPLE001';
-    generateBarcodePreview(previewSku);
-  };
-
-  if (barcodeFormatSelect) barcodeFormatSelect.addEventListener('change', updateBarcodePreview);
-  if (barcodeWidthSlider) {
-    barcodeWidthSlider.addEventListener('input', (e) => {
-      const display = document.getElementById('barcode-width-display');
-      if (display) display.textContent = parseFloat(e.target.value).toFixed(1) + 'x';
-      updateBarcodePreview();
-    });
-  }
-  if (barcodeHeightInput) barcodeHeightInput.addEventListener('change', updateBarcodePreview);
-  if (barcodeDisplayValue) barcodeDisplayValue.addEventListener('change', updateBarcodePreview);
-  if (barcodeMarginInput) barcodeMarginInput.addEventListener('change', updateBarcodePreview);
-  if (barcodeFontSizeInput) barcodeFontSizeInput.addEventListener('change', updateBarcodePreview);
-
-  // ── Barcode Search & Selection ──
-  const barcodeSearchInput = document.getElementById('barcode-search');
-  if (barcodeSearchInput) {
-    barcodeSearchInput.addEventListener('input', async () => {
-      await renderBarcodeList();
     });
   }
 

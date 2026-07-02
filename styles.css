@@ -998,7 +998,7 @@ tr.row-low-stock td {
 /* BARCODE SCREEN */
 .barcode-layout {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1.8fr 1.2fr;
   gap: 24px;
 }
 
@@ -1016,58 +1016,6 @@ tr.row-low-stock td {
   text-align: center;
   cursor: pointer;
   transition: all 0.3s;
-  position: relative;
-}
-
-.barcode-card input[type="checkbox"] {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-.barcode-card:hover {
-  border-color: var(--accent);
-  box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.2);
-  transform: translateY(-2px);
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.form-group label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.filter-select {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-primary);
-  padding: 10px 12px;
-  font-size: 13px;
-  font-family: 'Inter', sans-serif;
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-
-.filter-select:hover {
-  border-color: var(--border-hover);
-}
-
-.filter-select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12);
 }
 
 .barcode-card:hover {

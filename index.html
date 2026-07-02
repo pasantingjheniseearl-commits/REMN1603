@@ -472,119 +472,45 @@
     <!-- VIEW 5: BARCODE & SCANNER -->
     <section id="view-barcode" class="page-view">
       <div class="barcode-layout">
-        
-        <!-- Barcode Format & Settings Panel -->
-        <div class="widget" style="margin-bottom: 24px;">
-          <div class="widget-header">
-            <h3>Barcode Settings & Format</h3>
-            <span style="font-size: 12px; color: var(--text-muted);">Configure barcode format and printing options</span>
-          </div>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; padding: 16px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-primary);">
-            <!-- Format Selector -->
-            <div class="form-group">
-              <label>Barcode Format</label>
-              <select id="barcode-format" class="filter-select" style="width: 100%;">
-                <option value="CODE128">CODE128 (Universal)</option>
-                <option value="EAN13">EAN-13 (Europe)</option>
-                <option value="UPC">UPC (North America)</option>
-                <option value="CODE39">CODE39 (Alphanumeric)</option>
-                <option value="ITF14">ITF-14 (Logistics)</option>
-              </select>
-            </div>
-
-            <!-- Width Multiplier -->
-            <div class="form-group">
-              <label>Barcode Width</label>
-              <input type="range" id="barcode-width" min="0.5" max="3" step="0.1" value="1" style="width: 100%; cursor: pointer;">
-              <span style="font-size: 11px; color: var(--text-muted);" id="barcode-width-display">1.0x</span>
-            </div>
-
-            <!-- Height -->
-            <div class="form-group">
-              <label>Barcode Height (px)</label>
-              <input type="number" id="barcode-height" min="30" max="150" value="80" style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--input-bg); color: var(--text-primary);">
-            </div>
-
-            <!-- Font Display -->
-            <div class="form-group">
-              <label>
-                <input type="checkbox" id="barcode-displayValue" checked> Show SKU Text
-              </label>
-            </div>
-
-            <!-- Margin -->
-            <div class="form-group">
-              <label>Margin (px)</label>
-              <input type="number" id="barcode-margin" min="0" max="20" value="5" style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--input-bg); color: var(--text-primary);">
-            </div>
-
-            <!-- Font Size for Text -->
-            <div class="form-group">
-              <label>Text Font Size (px)</label>
-              <input type="number" id="barcode-fontSize" min="8" max="24" value="14" style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--input-bg); color: var(--text-primary);">
-            </div>
-          </div>
-        </div>
-
-        <!-- Barcode Preview & Generator -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
-          
-          <!-- Live Barcode Preview -->
-          <div class="widget">
-            <div class="widget-header">
-              <h3>Barcode Preview</h3>
-              <span style="font-size: 12px; color: var(--text-muted);">Real-time preview</span>
-            </div>
-            <div style="display: flex; align-items: center; justify-content: center; padding: 30px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 10px; min-height: 250px;">
-              <div id="barcode-preview-container" style="display: flex; flex-direction: column; align-items: center;">
-                <svg id="barcode-preview-svg" style="max-width: 100%; height: auto;"></svg>
-              </div>
-            </div>
-          </div>
-
-          <!-- Scanner Simulator (Improved) -->
-          <div class="widget">
-            <div class="widget-header">
-              <h3>Scanner Simulator</h3>
-              <span style="font-size: 12px; color: var(--text-muted);">Simulate scanning</span>
-            </div>
-            <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
-              <div class="search-box" style="width: 100%;">
-                <i class="fa-solid fa-barcode"></i>
-                <input type="text" id="mock-scan-input" placeholder="Type SKU or click barcode...">
-              </div>
-              <div style="display: flex; gap: 8px;">
-                <button class="btn" id="mock-scan-btn" style="flex: 1; justify-content: center;">
-                  <i class="fa-solid fa-check"></i> Scan
-                </button>
-                <button class="btn btn-secondary" id="mock-scan-clear" style="flex: 1; justify-content: center;">
-                  <i class="fa-solid fa-xmark"></i> Clear
-                </button>
-              </div>
-              <div id="mock-scan-result" style="margin-top: 12px;">
-                <!-- Scan results here -->
-              </div>
-            </div>
-          </div>
-        </div>
-
         <!-- Print Barcodes List -->
         <div class="widget">
           <div class="widget-header">
-            <h3>Generate &amp; Print Barcodes</h3>
-            <span style="font-size: 12px; color: var(--text-muted);">Select products to generate and print barcodes</span>
+            <h3>Generated Inventory Barcodes</h3>
+            <span style="font-size: 12px; color: var(--text-muted);">Click a card to fill the scanner</span>
           </div>
           <div class="search-box" style="margin-bottom: 16px;">
             <i class="fa-solid fa-magnifying-glass"></i>
             <input type="text" id="barcode-search" placeholder="Search SKU or product name...">
           </div>
-          <div style="margin-bottom: 12px; display: flex; gap: 8px;">
-            <button class="btn btn-secondary" onclick="selectAllBarcodes()"><i class="fa-solid fa-check-double"></i> Select All</button>
-            <button class="btn btn-secondary" onclick="deselectAllBarcodes()"><i class="fa-solid fa-square"></i> Deselect All</button>
-            <button class="btn" onclick="printSelectedBarcodes()" style="margin-left: auto;"><i class="fa-solid fa-print"></i> Print Selected</button>
-          </div>
-          <div class="barcode-list" id="barcode-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;">
+          <div class="barcode-list" id="barcode-cards-grid">
             <!-- Dynamically populated on search -->
+          </div>
+        </div>
+
+        <!-- Barcode Scanner Simulator -->
+        <div class="scanner-widget">
+          <div class="widget-header">
+            <h3>Scanner Simulator</h3>
+          </div>
+          
+          <div class="scan-window">
+            <i class="fa-solid fa-barcode" style="font-size: 80px; color: var(--text-muted);"></i>
+            <span style="font-size:12px; color: var(--text-secondary);">Type SKU below or click a barcode card</span>
+          </div>
+
+          <div class="scanner-input-section">
+            <div class="search-box" style="margin: 0 auto; width: 100%;">
+              <i class="fa-solid fa-barcode"></i>
+              <input type="text" id="mock-scan-input" placeholder="Type SKU or click card to Scan...">
+            </div>
+            <button class="btn" id="mock-scan-btn" style="width: 100%; justify-content: center;">
+              <i class="fa-solid fa-qrcode"></i> Scan Code
+            </button>
+          </div>
+
+          <!-- Output of simulator -->
+          <div id="mock-scan-result">
+            <!-- Matches render here -->
           </div>
         </div>
       </div>
