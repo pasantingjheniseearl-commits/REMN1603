@@ -222,6 +222,24 @@ function _redirectToDashboard() {
 
 // --- VIEW RENDERING ENGINE ---
 
+// Shared, visually distinct color palette used consistently across charts and tables.
+// 12 colors to cover even large category sets without repeating.
+const CHART_COLORS = [
+  '#06b6d4', // teal
+  '#3b82f6', // blue
+  '#10b981', // green
+  '#f59e0b', // amber
+  '#8b5cf6', // violet
+  '#f43f5e', // rose
+  '#14b8a6', // cyan
+  '#f97316', // orange
+  '#a855f7', // purple
+  '#84cc16', // lime
+  '#ec4899', // pink
+  '#64748b', // slate
+];
+const CHART_COLORS_ALPHA = CHART_COLORS.map(c => c + 'cc'); // ~80% opacity versions
+
 // Dashboard View
 async function renderDashboard() {
   const products = await getCachedProducts();
@@ -308,6 +326,14 @@ function buildInventoryRow(p) {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 
+  // Operators can view inventory but cannot edit or delete products
+  const authProfile = window.WMSAuth && WMSAuth.profile ? WMSAuth.profile : null;
+  const isOperator = authProfile ? authProfile.role === 'Operator' : false;
+  const actionsHtml = isOperator
+    ? `<span style="font-size:11px;color:var(--text-muted);font-style:italic;">View only</span>`
+    : `<button class="action-btn edit-product-btn" data-sku="${escapeHtml(p.sku)}" title="Edit Product Details"><i class="fa-solid fa-pen"></i></button>
+       <button class="action-btn delete delete-product-btn" data-sku="${escapeHtml(p.sku)}" title="Delete Product"><i class="fa-solid fa-trash"></i></button>`;
+
   return `<tr class="${rowClass}" data-sku="${escapeHtml(p.sku)}">
     <td style="font-weight:700;font-family:monospace;">${escapeHtml(p.sku)}</td>
     <td style="font-weight:500;">${escapeHtml(p.name)}</td>
@@ -320,12 +346,7 @@ function buildInventoryRow(p) {
     <td style="color:var(--text-muted);font-family:monospace;">₱${Number(p.price||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
     <td><span class="status ${statusClass}">${escapeHtml(p.status)}</span></td>
     <td style="font-size:12px;color:var(--text-muted);">${formattedDate}</td>
-    <td>
-      <div class="actions">
-        <button class="action-btn edit-product-btn" data-sku="${escapeHtml(p.sku)}" title="Edit Product Details"><i class="fa-solid fa-pen"></i></button>
-        <button class="action-btn delete delete-product-btn" data-sku="${escapeHtml(p.sku)}" title="Delete Product"><i class="fa-solid fa-trash"></i></button>
-      </div>
-    </td>
+    <td><div class="actions">${actionsHtml}</div></td>
   </tr>`;
 }
 
@@ -334,6 +355,16 @@ async function renderInventoryTable() {
   const products = await getCachedProducts();
   const tbody = document.getElementById('inventory-table-body');
   if (!tbody) return;
+
+  // Hide Add/Import controls for operators
+  const authProfile = window.WMSAuth && WMSAuth.profile ? WMSAuth.profile : null;
+  const isOperator = authProfile ? authProfile.role === 'Operator' : false;
+  const addBtn = document.querySelector('#view-inventory .btn:not(.btn-secondary)');
+  const importLabel = document.querySelector('label[for="xlsx-import-file"]');
+  const exportBtn = document.querySelector('.inv-export-btn');
+  if (addBtn) addBtn.style.display = isOperator ? 'none' : '';
+  if (importLabel) importLabel.style.display = isOperator ? 'none' : '';
+  // Operators can still export
 
   const searchQuery = document.getElementById('inv-search').value.toLowerCase();
   const filterCategory = document.getElementById('filter-category').value;
@@ -869,12 +900,14 @@ async function triggerMockScan() {
 // Reports & Chart rendering
 async function renderReportsSection() {
   const products = await getCachedProducts();
-  const categories = [...new Set(products.map(p => p.category))];
+  const categories = [...new Set(products.map(p => p.category))].sort();
 
   // 1. Calculate KPI Metrics
   const totalSKUs = products.length;
   const totalStock = products.reduce((a, p) => a + p.stock_on_hand, 0);
   const totalValuation = products.reduce((a, p) => a + (p.stock_on_hand * (parseFloat(p.price) || 0)), 0);
+  const lowStockCount = products.filter(p => p.status === 'Low Stock').length;
+  const outOfStockCount = products.filter(p => p.status === 'Out of Stock').length;
 
   // Parse locations
   const uniqueLocs = new Set();
@@ -890,19 +923,15 @@ async function renderReportsSection() {
   const kpiValue = document.getElementById('kpi-reports-value');
   const kpiLocs = document.getElementById('kpi-reports-locations');
 
-  if (kpiSkus) kpiSkus.textContent = totalSKUs;
-  if (kpiUnits) kpiUnits.textContent = totalStock;
+  if (kpiSkus) kpiSkus.textContent = totalSKUs.toLocaleString();
+  if (kpiUnits) kpiUnits.textContent = totalStock.toLocaleString();
   if (kpiValue) kpiValue.textContent = '₱' + totalValuation.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (kpiLocs) kpiLocs.textContent = totalLocations;
 
   // 2. Calculate Location Breakdown Stats
   const locationStats = {};
   uniqueLocs.forEach(loc => {
-    locationStats[loc] = {
-      skus: new Set(),
-      units: 0,
-      value: 0
-    };
+    locationStats[loc] = { skus: new Set(), units: 0, value: 0 };
   });
 
   products.forEach(p => {
@@ -951,13 +980,60 @@ async function renderReportsSection() {
   }
 
   // 3. Category Data Breakdown for charts
-  const dataByCat = categories.map(cat => ({
-    category: cat,
-    count: products.filter(p => p.category === cat).length,
-    stock: products.filter(p => p.category === cat).reduce((a, p) => a + p.stock_on_hand, 0)
-  }));
+  const dataByCat = categories.map(cat => {
+    const catProducts = products.filter(p => p.category === cat);
+    const catStock = catProducts.reduce((a, p) => a + p.stock_on_hand, 0);
+    const catValue = catProducts.reduce((a, p) => a + (p.stock_on_hand * (parseFloat(p.price) || 0)), 0);
+    const catLow   = catProducts.filter(p => p.status === 'Low Stock').length;
+    const catOut   = catProducts.filter(p => p.status === 'Out of Stock').length;
+    return {
+      category: cat,
+      count: catProducts.length,
+      stock: catStock,
+      value: catValue,
+      lowStock: catLow,
+      outOfStock: catOut,
+      valuePercent: totalValuation > 0 ? (catValue / totalValuation) * 100 : 0
+    };
+  }).sort((a, b) => b.stock - a.stock);
 
-  // Render Charts
+  // 4. Render Category Breakdown Table (new)
+  const catTbody = document.getElementById('reports-categories-tbody');
+  if (catTbody) {
+    if (dataByCat.length === 0) {
+      catTbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:15px;color:var(--text-muted);">No categories recorded</td></tr>';
+    } else {
+      catTbody.innerHTML = dataByCat.map((item, idx) => {
+        const color = CHART_COLORS[idx % CHART_COLORS.length];
+        return `
+          <tr>
+            <td style="font-weight:700;">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};margin-right:8px;vertical-align:middle;"></span>
+              ${escapeHtml(item.category)}
+            </td>
+            <td>${escapeHtml(item.count)} SKUs</td>
+            <td style="font-family:'JetBrains Mono',monospace;">${escapeHtml(item.stock)} units</td>
+            <td style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--success-color);">₱${item.value.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+            <td>
+              ${item.lowStock > 0 ? `<span style="color:var(--warning-color);font-size:12px;font-weight:600;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:3px;"></i>${escapeHtml(item.lowStock)} low</span>` : ''}
+              ${item.outOfStock > 0 ? `<span style="color:var(--danger-color);font-size:12px;font-weight:600;margin-left:8px;"><i class="fa-solid fa-circle-xmark" style="margin-right:3px;"></i>${escapeHtml(item.outOfStock)} out</span>` : ''}
+              ${item.lowStock === 0 && item.outOfStock === 0 ? `<span style="color:var(--success-color);font-size:12px;">✓ OK</span>` : ''}
+            </td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="flex-grow:1;background:var(--border-color);height:6px;border-radius:3px;overflow:hidden;min-width:60px;">
+                  <div style="background:${color};width:${item.valuePercent}%;height:100%;"></div>
+                </div>
+                <span style="font-size:11px;font-weight:600;color:var(--text-secondary);width:38px;text-align:right;">${item.valuePercent.toFixed(1)}%</span>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  // 5. Render Charts
   if (window.Chart) {
     renderCanvasCharts(products, dataByCat, locationStatsArray);
   } else {
@@ -978,7 +1054,7 @@ function renderCanvasCharts(products, dataByCat, locationStatsArray) {
   const textColor = isDark ? '#94a3b8' : '#475569';
   const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
 
-  // Chart 1: Location Stock Volumes & Valuations (Dual Axis)
+  // Chart 1: Location Stock Volumes & Valuations (Dual Axis Bar+Line)
   const sortedLocs = [...locationStatsArray].slice(0, 7);
   chartInstanceStock = new window.Chart(ctxStock, {
     type: 'bar',
@@ -989,10 +1065,10 @@ function renderCanvasCharts(products, dataByCat, locationStatsArray) {
           label: 'Total Units',
           type: 'bar',
           data: sortedLocs.map(l => l.totalUnits),
-          backgroundColor: isDark ? 'rgba(6, 182, 212, 0.7)' : 'rgba(37, 99, 235, 0.7)',
-          borderColor: isDark ? '#06b6d4' : '#2563eb',
+          backgroundColor: sortedLocs.map((_, i) => CHART_COLORS_ALPHA[i % CHART_COLORS_ALPHA.length]),
+          borderColor:      sortedLocs.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]),
           borderWidth: 1,
-          borderRadius: 4,
+          borderRadius: 5,
           yAxisID: 'y'
         },
         {
@@ -1000,10 +1076,13 @@ function renderCanvasCharts(products, dataByCat, locationStatsArray) {
           type: 'line',
           data: sortedLocs.map(l => l.valuation),
           borderColor: '#10b981',
-          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          backgroundColor: 'rgba(16,185,129,0.08)',
           borderWidth: 2,
-          tension: 0.3,
+          tension: 0.35,
           pointBackgroundColor: '#10b981',
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          fill: true,
           yAxisID: 'y1'
         }
       ]
@@ -1011,56 +1090,85 @@ function renderCanvasCharts(products, dataByCat, locationStatsArray) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: true, labels: { color: textColor } }
+        legend: { display: true, labels: { color: textColor, usePointStyle: true, pointStyleWidth: 10 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.dataset.label === 'Valuation (₱)'
+              ? ` ₱${Number(ctx.raw).toLocaleString(undefined,{minimumFractionDigits:2})}`
+              : ` ${Number(ctx.raw).toLocaleString()} units`
+          }
+        }
       },
       scales: {
         x: { grid: { display: false }, ticks: { color: textColor } },
-        y: { 
-          type: 'linear',
-          display: true,
-          position: 'left',
-          grid: { color: gridColor }, 
+        y: {
+          type: 'linear', display: true, position: 'left',
+          grid: { color: gridColor },
           ticks: { color: textColor },
           title: { display: true, text: 'Quantity (Units)', color: textColor }
         },
         y1: {
-          type: 'linear',
-          display: true,
-          position: 'right',
+          type: 'linear', display: true, position: 'right',
           grid: { drawOnChartArea: false },
-          ticks: { 
-            color: textColor,
-            callback: (val) => '₱' + val.toLocaleString()
-          },
+          ticks: { color: textColor, callback: val => '₱' + val.toLocaleString() },
           title: { display: true, text: 'Valuation (₱)', color: textColor }
         }
       }
     }
   });
 
-  // Chart 2: Category Allocation
+  // Chart 2: Category Allocation — rich multi-color doughnut
+  const totalStock = dataByCat.reduce((a, d) => a + d.stock, 0);
   chartInstanceCategory = new window.Chart(ctxCat, {
     type: 'doughnut',
     data: {
       labels: dataByCat.map(d => d.category),
       datasets: [{
         data: dataByCat.map(d => d.stock),
-        backgroundColor: [
-          'rgba(6, 182, 212, 0.8)',
-          'rgba(59, 130, 246, 0.8)',
-          'rgba(16, 185, 129, 0.8)',
-          'rgba(245, 158, 11, 0.8)',
-          'rgba(139, 92, 246, 0.8)'
-        ],
-        borderWidth: 0
+        backgroundColor: dataByCat.map((_, i) => CHART_COLORS_ALPHA[i % CHART_COLORS_ALPHA.length]),
+        borderColor:      dataByCat.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]),
+        borderWidth: 2,
+        hoverOffset: 10
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      cutout: '62%',
       plugins: {
-        legend: { position: 'right', labels: { color: textColor } }
+        legend: {
+          position: 'right',
+          labels: {
+            color: textColor,
+            usePointStyle: true,
+            pointStyle: 'circle',
+            pointStyleWidth: 10,
+            padding: 14,
+            font: { size: 12 },
+            generateLabels: chart => {
+              const ds = chart.data.datasets[0];
+              return chart.data.labels.map((label, i) => ({
+                text: `${label}  (${totalStock > 0 ? ((ds.data[i] / totalStock) * 100).toFixed(1) : 0}%)`,
+                fillStyle: ds.backgroundColor[i],
+                strokeStyle: ds.borderColor[i],
+                lineWidth: 2,
+                hidden: false,
+                index: i,
+                pointStyle: 'circle'
+              }));
+            }
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const pct = totalStock > 0 ? ((ctx.raw / totalStock) * 100).toFixed(1) : 0;
+              return ` ${ctx.label}: ${Number(ctx.raw).toLocaleString()} units (${pct}%)`;
+            }
+          }
+        }
       }
     }
   });
@@ -1081,8 +1189,9 @@ function renderFallbackSVGCharts(products, dataByCat, locationStatsArray) {
     const barHeight = (l.totalUnits / maxVal) * 150;
     const x = 30 + idx * 45;
     const y = 170 - barHeight;
+    const color = CHART_COLORS[idx % CHART_COLORS.length];
     return `
-      <rect x="${x}" y="${y}" width="25" height="${barHeight}" fill="var(--accent)" rx="2"/>
+      <rect x="${x}" y="${y}" width="25" height="${barHeight}" fill="${color}" rx="3"/>
       <text x="${x + 12}" y="190" font-size="9" fill="var(--text-secondary)" text-anchor="middle">${l.name}</text>
       <text x="${x + 12}" y="${y - 3}" font-size="8" fill="var(--text-primary)" text-anchor="middle">${l.totalUnits}</text>
     `;
@@ -1096,7 +1205,6 @@ function renderFallbackSVGCharts(products, dataByCat, locationStatsArray) {
   `;
 
   const totalStock = dataByCat.reduce((a, d) => a + d.stock, 0);
-  const colors = ['#06b6d4', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
   let legendHtml = '';
   
   if (totalStock === 0) {
@@ -1104,28 +1212,27 @@ function renderFallbackSVGCharts(products, dataByCat, locationStatsArray) {
   } else {
     dataByCat.forEach((d, idx) => {
       const percentage = d.stock / totalStock;
-      const color = colors[idx % colors.length];
-      
+      const color = CHART_COLORS[idx % CHART_COLORS.length];
       legendHtml += `
         <div style="display:flex; align-items:center; gap:8px; font-size:12px; margin-bottom:5px;">
-          <div style="width:12px; height:12px; border-radius:3px; background:${color};"></div>
-          <span style="color:var(--text-secondary);">${d.category}: ${d.stock} (${Math.round(percentage*100)}%)</span>
+          <div style="width:12px; height:12px; border-radius:50%; background:${color}; flex-shrink:0;"></div>
+          <span style="color:var(--text-secondary);">${escapeHtml(d.category)}: ${d.stock.toLocaleString()} (${Math.round(percentage*100)}%)</span>
         </div>
       `;
     });
 
     parentCat.innerHTML = `
-      <div style="display:flex; align-items:center; height:100%; justify-content:space-around; width:100%;">
-        <svg width="120" height="120" viewBox="0 0 36 36" style="transform: rotate(-90deg);">
+      <div style="display:flex; align-items:center; height:100%; justify-content:space-around; width:100%; padding:8px;">
+        <svg width="110" height="110" viewBox="0 0 36 36" style="transform: rotate(-90deg); flex-shrink:0;">
           <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="var(--border-color)" stroke-width="4"></circle>
           ${dataByCat.map((d, idx) => {
             const pct = (d.stock / totalStock) * 100;
-            const color = colors[idx % colors.length];
+            const color = CHART_COLORS[idx % CHART_COLORS.length];
             const offset = dataByCat.slice(0, idx).reduce((acc, prev) => acc + (prev.stock / totalStock) * 100, 0);
-            return `<circle cx="18" cy="18" r="15.915" fill="transparent" stroke="${color}" stroke-width="4" stroke-dasharray="${pct} ${100-pct}" stroke-dashoffset="${-offset}"></circle>`;
+            return `<circle cx="18" cy="18" r="15.915" fill="transparent" stroke="${color}" stroke-width="4" stroke-dasharray="${pct} ${100-pct}" stroke-dashoffset="${-offset}" style="transition:stroke-dasharray 0.4s;"></circle>`;
           }).join('')}
         </svg>
-        <div style="display:flex; flex-direction:column;">
+        <div style="display:flex; flex-direction:column; overflow:hidden;">
           ${legendHtml}
         </div>
       </div>

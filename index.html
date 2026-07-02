@@ -231,12 +231,12 @@
         <div class="table-header">
           <h2>Inventory Management</h2>
           <div style="display: flex; gap: 10px; align-items: center;">
-            <label for="xlsx-import-file" class="btn btn-secondary" style="cursor: pointer; margin-bottom: 0; display: inline-flex; align-items: center; gap: 6px;">
+            <label for="xlsx-import-file" class="btn btn-secondary admin-only" style="cursor: pointer; margin-bottom: 0; display: inline-flex; align-items: center; gap: 6px;">
               <i class="fa-solid fa-file-excel" style="color: #10b981;"></i> Import (CSV/Excel)
             </label>
             <input type="file" id="xlsx-import-file" accept=".csv, .xls, .xlsx, .xlsm" style="display: none;">
             
-            <button class="btn" onclick="openAddForm()">
+            <button class="btn admin-only" onclick="openAddForm()">
               <i class="fa-solid fa-plus"></i>
               Add Product
             </button>
@@ -530,7 +530,7 @@
       <div class="cards" style="margin-bottom: 24px;">
         <div class="card">
           <div class="card-header-flex">
-            <div class="title">Total SKU Categories</div>
+            <div class="title">Total SKUs</div>
             <div class="icon"><i class="fa-solid fa-tags"></i></div>
           </div>
           <div class="value" id="kpi-reports-skus">0</div>
@@ -538,7 +538,7 @@
 
         <div class="card">
           <div class="card-header-flex">
-            <div class="title">Total Units Handled</div>
+            <div class="title">Total Stock Units</div>
             <div class="icon"><i class="fa-solid fa-cubes"></i></div>
           </div>
           <div class="value" id="kpi-reports-units">0</div>
@@ -546,7 +546,7 @@
 
         <div class="card">
           <div class="card-header-flex">
-            <div class="title">Total Value (₱)</div>
+            <div class="title">Total Inventory Value (₱)</div>
             <div class="icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;"><i class="fa-solid fa-coins"></i></div>
           </div>
           <div class="value" id="kpi-reports-value" style="color: var(--success-color);">₱0.00</div>
@@ -588,20 +588,22 @@
       </div>
 
       <div class="reports-layout" style="margin-bottom: 24px;">
-        <!-- Chart 1: Stock levels -->
+        <!-- Chart 1: Location Stock by Rack (Bar + Line dual axis) -->
         <div class="widget">
           <div class="widget-header">
-            <h3>Top 7 Product Stock Volumes</h3>
+            <h3>Stock &amp; Valuation by Location</h3>
+            <span style="font-size:12px;color:var(--text-muted);">Top 7 racks</span>
           </div>
           <div class="chart-container">
             <canvas id="chart-stock-levels"></canvas>
           </div>
         </div>
 
-        <!-- Chart 2: Category distributions -->
+        <!-- Chart 2: Category allocation doughnut -->
         <div class="widget">
           <div class="widget-header">
             <h3>Inventory Allocation by Category</h3>
+            <span style="font-size:12px;color:var(--text-muted);">by stock units</span>
           </div>
           <div class="chart-container">
             <canvas id="chart-category-dist"></canvas>
@@ -609,10 +611,36 @@
         </div>
       </div>
 
+      <!-- Category breakdown table -->
+      <div class="table-section" style="margin-bottom: 24px;">
+        <div class="widget-header">
+          <h3>Category Breakdown</h3>
+          <span style="font-size:12px;color:var(--text-muted);">Stock health &amp; value by category</span>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>SKU Count</th>
+                <th>Total Units</th>
+                <th>Valuation (₱)</th>
+                <th>Stock Health</th>
+                <th>% of Value</th>
+              </tr>
+            </thead>
+            <tbody id="reports-categories-tbody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Location breakdown table section -->
       <div class="table-section" style="margin-top: 24px;">
         <div class="widget-header">
           <h3>Warehouse Locations Valuation Breakdown</h3>
+          <span style="font-size:12px;color:var(--text-muted);">by rack / bin</span>
         </div>
         <div class="table-container">
           <table>
