@@ -396,7 +396,9 @@
   </div>
 
   <script>
-    // ── Supabase client — reuse window._sb if db.js already ran, else create once ──
+    // ── Supabase client — reuse window._sb if db.js already ran.
+    // login.html does not load db.js, so we fall back to creating the client here.
+    // The anon key is intentionally public — security is enforced by Supabase RLS policies.
     const sb = window._sb || (window.supabase
       ? window.supabase.createClient(
           "https://fjpvrxucmxlfojwmbdfu.supabase.co",
@@ -550,10 +552,10 @@
         const hash = await hashPassword(password);
         const user = localUsers.find(u =>
           u.email.toLowerCase() === email.toLowerCase() &&
-          (u.passwordHash === hash || u.password === password) // u.password fallback for old local accounts
+          u.passwordHash === hash
         );
         if (user) {
-          // Migrate plaintext to hash silently
+          // Migrate any remaining plaintext passwords to hashed (legacy cleanup)
           if (user.password && !user.passwordHash) {
             user.passwordHash = hash;
             delete user.password;

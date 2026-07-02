@@ -26,6 +26,20 @@ let vsScrollRAF = null;     // requestAnimationFrame token for scroll throttling
 
 // --- GLOBAL HELPER FUNCTIONS ---
 
+// Escape HTML special characters to prevent XSS when inserting user-sourced
+// data into innerHTML. Use this for any value that comes from the database
+// (product names, SKUs, operator names, locations, categories, etc.).
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+window.escapeHtml = escapeHtml; // Expose globally
+
 // Render a product's multi-location JSON map as a readable string
 // {"Rack A1":50,"Rack B2":30} → "Rack A1 (50), Rack B2 (30)"
 function formatLocationDisplay(locationStr, stockOnHand) {
@@ -237,7 +251,7 @@ async function renderDashboard() {
         const iconClass = isStockIn ? 'fa-arrow-down-long' : 'fa-arrow-up-long';
         const iconType = isStockIn ? 'in' : 'out';
         const timeFormatted = formatTimeDiff(new Date(tx.timestamp));
-        const locInfo = tx.location && tx.location !== 'N/A' ? ` &bull; <i class="fa-solid fa-location-dot" style="font-size:10px;"></i> ${tx.location}` : '';
+        const locInfo = tx.location && tx.location !== 'N/A' ? ` &bull; <i class="fa-solid fa-location-dot" style="font-size:10px;"></i> ${escapeHtml(tx.location)}` : '';
         
         return `
           <div class="feed-item">
@@ -245,14 +259,14 @@ async function renderDashboard() {
               <i class="fa-solid ${iconClass}"></i>
             </div>
             <div class="feed-details">
-              <div class="feed-title">${tx.type}: ${tx.productName}</div>
+              <div class="feed-title">${escapeHtml(tx.type)}: ${escapeHtml(tx.productName)}</div>
               <div class="feed-meta">
-                <span>${tx.quantity} units (${tx.sku})${locInfo} &bull; ${tx.docRef}</span>
+                <span>${escapeHtml(tx.quantity)} units (${escapeHtml(tx.sku)})${locInfo} &bull; ${escapeHtml(tx.docRef)}</span>
                 <span>${timeFormatted}</span>
               </div>
             </div>
             <div style="align-self: center;">
-              <span class="badge-operator">${tx.operator}</span>
+              <span class="badge-operator">${escapeHtml(tx.operator)}</span>
             </div>
           </div>
         `;
@@ -271,11 +285,11 @@ async function renderDashboard() {
         const statusClass = p.status === 'Out of Stock' ? 'out-of-stock' : 'low-stock';
         return `
           <tr>
-            <td style="font-weight:700;">${p.sku}</td>
-            <td>${p.name}</td>
-            <td style="font-size:12px;">${formatLocationDisplay(p.location, p.stock_on_hand)}</td>
-            <td style="color: var(--danger-color); font-weight:700;">${p.available_stock}</td>
-            <td><span class="status ${statusClass}">${p.status}</span></td>
+            <td style="font-weight:700;">${escapeHtml(p.sku)}</td>
+            <td>${escapeHtml(p.name)}</td>
+            <td style="font-size:12px;">${escapeHtml(formatLocationDisplay(p.location, p.stock_on_hand))}</td>
+            <td style="color: var(--danger-color); font-weight:700;">${escapeHtml(p.available_stock)}</td>
+            <td><span class="status ${statusClass}">${escapeHtml(p.status)}</span></td>
           </tr>
         `;
       }).join('');
@@ -294,22 +308,22 @@ function buildInventoryRow(p) {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 
-  return `<tr class="${rowClass}" data-sku="${p.sku}">
-    <td style="font-weight:700;font-family:monospace;">${p.sku}</td>
-    <td style="font-weight:500;">${p.name}</td>
-    <td>${p.category}</td>
-    <td style="font-size:12px;"><i class="fa-solid fa-location-dot" style="margin-right:5px;font-size:11px;color:var(--text-muted);"></i>${formatLocationDisplay(p.location, p.stock_on_hand)}</td>
-    <td style="font-weight:600;">${p.stock_on_hand}</td>
-    <td style="color:var(--text-secondary);font-weight:500;">${p.reserved_stock}</td>
-    <td style="font-weight:700;color:${p.available_stock<=0?'var(--danger-color)':'var(--text-primary)'};">${p.available_stock}</td>
-    <td style="color:var(--text-muted);font-family:monospace;">${p.reorder_level}</td>
+  return `<tr class="${rowClass}" data-sku="${escapeHtml(p.sku)}">
+    <td style="font-weight:700;font-family:monospace;">${escapeHtml(p.sku)}</td>
+    <td style="font-weight:500;">${escapeHtml(p.name)}</td>
+    <td>${escapeHtml(p.category)}</td>
+    <td style="font-size:12px;"><i class="fa-solid fa-location-dot" style="margin-right:5px;font-size:11px;color:var(--text-muted);"></i>${escapeHtml(formatLocationDisplay(p.location, p.stock_on_hand))}</td>
+    <td style="font-weight:600;">${escapeHtml(p.stock_on_hand)}</td>
+    <td style="color:var(--text-secondary);font-weight:500;">${escapeHtml(p.reserved_stock)}</td>
+    <td style="font-weight:700;color:${p.available_stock<=0?'var(--danger-color)':'var(--text-primary)'};">${escapeHtml(p.available_stock)}</td>
+    <td style="color:var(--text-muted);font-family:monospace;">${escapeHtml(p.reorder_level)}</td>
     <td style="color:var(--text-muted);font-family:monospace;">₱${Number(p.price||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-    <td><span class="status ${statusClass}">${p.status}</span></td>
+    <td><span class="status ${statusClass}">${escapeHtml(p.status)}</span></td>
     <td style="font-size:12px;color:var(--text-muted);">${formattedDate}</td>
     <td>
       <div class="actions">
-        <button class="action-btn edit-product-btn" data-sku="${p.sku}" title="Edit Product Details"><i class="fa-solid fa-pen"></i></button>
-        <button class="action-btn delete delete-product-btn" data-sku="${p.sku}" title="Delete Product"><i class="fa-solid fa-trash"></i></button>
+        <button class="action-btn edit-product-btn" data-sku="${escapeHtml(p.sku)}" title="Edit Product Details"><i class="fa-solid fa-pen"></i></button>
+        <button class="action-btn delete delete-product-btn" data-sku="${escapeHtml(p.sku)}" title="Delete Product"><i class="fa-solid fa-trash"></i></button>
       </div>
     </td>
   </tr>`;
@@ -495,7 +509,7 @@ async function updateSkuDatalists() {
   const dlIn = document.getElementById('stock-in-sku-list');
   const dlOut = document.getElementById('stock-out-sku-list');
   
-  const optionsHtml = products.map(p => `<option value="${p.sku}">${p.name} (Qty: ${p.stock_on_hand})</option>`).join('');
+  const optionsHtml = products.map(p => `<option value="${escapeHtml(p.sku)}">${escapeHtml(p.name)} (Qty: ${escapeHtml(p.stock_on_hand)})</option>`).join('');
   if (dlIn) dlIn.innerHTML = optionsHtml;
   if (dlOut) dlOut.innerHTML = optionsHtml;
 }
@@ -523,7 +537,7 @@ async function initStockInForm() {
         const locMap = window.parseLocations ? window.parseLocations(product.location, product.stock_on_hand) : {};
         const locEntries = Object.entries(locMap);
         const locBreakdown = locEntries.length > 0
-          ? locEntries.map(([loc, qty]) => `<span style="display:inline-block;margin-right:10px;"><i class="fa-solid fa-location-dot" style="margin-right:3px;font-size:10px;color:var(--text-muted);"></i><strong>${loc}:</strong> ${qty} units</span>`).join('')
+          ? locEntries.map(([loc, qty]) => `<span style="display:inline-block;margin-right:10px;"><i class="fa-solid fa-location-dot" style="margin-right:3px;font-size:10px;color:var(--text-muted);"></i><strong>${escapeHtml(loc)}:</strong> ${escapeHtml(qty)} units</span>`).join('')
           : `<span style="color:var(--text-muted);">No location data yet</span>`;
 
         const locCount = locEntries.length;
@@ -532,11 +546,11 @@ async function initStockInForm() {
         details.innerHTML = `
           <div style="background:rgba(255,255,255,0.03);padding:12px;border-radius:8px;border:1px solid var(--border-color);font-size:13px;display:flex;flex-direction:column;gap:6px;">
             <div style="display:flex;gap:16px;flex-wrap:wrap;">
-              <span><strong>Product:</strong> ${product.name}</span>
-              <span><strong>Category:</strong> ${product.category}</span>
+              <span><strong>Product:</strong> ${escapeHtml(product.name)}</span>
+              <span><strong>Category:</strong> ${escapeHtml(product.category)}</span>
               <span><strong>Unit Price:</strong> <span style="color:var(--accent);font-weight:700;">₱${Number(product.price||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</span></span>
             </div>
-            <div><strong>Total Stock:</strong> ${product.stock_on_hand} &nbsp;|&nbsp; <strong>Available:</strong> <span style="color:var(--accent);font-weight:700;">${product.available_stock}</span></div>
+            <div><strong>Total Stock:</strong> ${escapeHtml(product.stock_on_hand)} &nbsp;|&nbsp; <strong>Available:</strong> <span style="color:var(--accent);font-weight:700;">${escapeHtml(product.available_stock)}</span></div>
             <div><strong>Locations (${locCount}/5):</strong></div>
             <div style="padding-left:8px;line-height:2;">${locBreakdown}</div>
             ${!canAddNewLoc ? `<div style="color:var(--warning-color);font-size:12px;"><i class="fa-solid fa-triangle-exclamation"></i> Max 5 locations. Stock in at an existing location.</div>` : ''}
@@ -576,22 +590,22 @@ async function renderStockInHistoryTable() {
   if (query) inTx = inTx.filter(t => t.sku.toUpperCase().includes(query));
 
   if (inTx.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:15px;">${query ? `No Stock In records for SKU "<strong>${query}</strong>".` : 'No recent Stock In logs.'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:15px;">${query ? `No Stock In records for SKU &quot;<strong>${escapeHtml(query)}</strong>&quot;.` : 'No recent Stock In logs.'}</td></tr>`;
     return;
   }
 
   tbody.innerHTML = inTx.slice(0, 100).map(tx => {
     const locInfo = tx.location && tx.location !== 'N/A'
-      ? ` <span style="font-size:11px;color:var(--text-muted);font-weight:500;">&nbsp;@ ${tx.location}</span>` : '';
+      ? ` <span style="font-size:11px;color:var(--text-muted);font-weight:500;">&nbsp;@ ${escapeHtml(tx.location)}</span>` : '';
     const priceInfo = tx.price > 0
       ? `<span style="color:var(--text-muted);font-size:11px;"> &nbsp;·&nbsp; ₱${Number(tx.price).toLocaleString(undefined,{minimumFractionDigits:2})}/unit</span>` : '';
     return `
       <tr>
         <td style="font-size:12px;color:var(--text-muted);">${new Date(tx.timestamp).toLocaleString()}</td>
-        <td style="font-weight:700;font-family:monospace;">${tx.sku}</td>
-        <td>${tx.productName}${tx.category ? ` <span style="font-size:11px;color:var(--text-muted);">(${tx.category})</span>` : ''}</td>
-        <td style="color:var(--success-color);font-weight:700;">+${tx.quantity}${locInfo}${priceInfo}</td>
-        <td style="font-size:12px;color:var(--text-muted);">${tx.operator || ''}</td>
+        <td style="font-weight:700;font-family:monospace;">${escapeHtml(tx.sku)}</td>
+        <td>${escapeHtml(tx.productName)}${tx.category ? ` <span style="font-size:11px;color:var(--text-muted);">(${escapeHtml(tx.category)})</span>` : ''}</td>
+        <td style="color:var(--success-color);font-weight:700;">+${escapeHtml(tx.quantity)}${locInfo}${priceInfo}</td>
+        <td style="font-size:12px;color:var(--text-muted);">${escapeHtml(tx.operator || '')}</td>
       </tr>
     `;
   }).join('');
@@ -635,17 +649,17 @@ async function initStockOutForm() {
         }
 
         const locBreakdown = availableLocs.length > 0
-          ? availableLocs.map(([loc, qty]) => `<span style="display:inline-block;margin-right:10px;"><i class="fa-solid fa-location-dot" style="margin-right:3px;font-size:10px;color:var(--text-muted);"></i><strong>${loc}:</strong> ${qty} units</span>`).join('')
+          ? availableLocs.map(([loc, qty]) => `<span style="display:inline-block;margin-right:10px;"><i class="fa-solid fa-location-dot" style="margin-right:3px;font-size:10px;color:var(--text-muted);"></i><strong>${escapeHtml(loc)}:</strong> ${escapeHtml(qty)} units</span>`).join('')
           : `<span style="color:var(--danger-color);">No stock available in any location</span>`;
 
         details.innerHTML = `
           <div style="background:rgba(255,255,255,0.03);padding:12px;border-radius:8px;border:1px solid var(--border-color);font-size:13px;display:flex;flex-direction:column;gap:6px;">
             <div style="display:flex;gap:16px;flex-wrap:wrap;">
-              <span><strong>Product:</strong> ${product.name}</span>
-              <span><strong>Category:</strong> ${product.category}</span>
+              <span><strong>Product:</strong> ${escapeHtml(product.name)}</span>
+              <span><strong>Category:</strong> ${escapeHtml(product.category)}</span>
               <span><strong>Unit Price:</strong> <span style="color:var(--accent);font-weight:700;">₱${Number(product.price||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</span></span>
             </div>
-            <div><strong>Total Stock:</strong> ${product.stock_on_hand} &nbsp;|&nbsp; <strong>Reserved:</strong> ${product.reserved_stock} &nbsp;|&nbsp; <strong>Available:</strong> <span style="color:var(--accent);font-weight:700;" id="stock-out-max-qty">${product.available_stock}</span></div>
+            <div><strong>Total Stock:</strong> ${escapeHtml(product.stock_on_hand)} &nbsp;|&nbsp; <strong>Reserved:</strong> ${escapeHtml(product.reserved_stock)} &nbsp;|&nbsp; <strong>Available:</strong> <span style="color:var(--accent);font-weight:700;" id="stock-out-max-qty">${escapeHtml(product.available_stock)}</span></div>
             <div><strong>Stock by Location:</strong></div>
             <div style="padding-left:8px;line-height:2;">${locBreakdown}</div>
           </div>
@@ -685,16 +699,16 @@ async function renderStockOutHistoryTable() {
 
   tbody.innerHTML = outTx.slice(0, 100).map(tx => {
     const locInfo = tx.location && tx.location !== 'N/A'
-      ? ` <span style="font-size:11px;color:var(--text-muted);font-weight:500;">&nbsp;@ ${tx.location}</span>` : '';
+      ? ` <span style="font-size:11px;color:var(--text-muted);font-weight:500;">&nbsp;@ ${escapeHtml(tx.location)}</span>` : '';
     const priceInfo = tx.price > 0
       ? `<span style="color:var(--text-muted);font-size:11px;"> &nbsp;·&nbsp; ₱${Number(tx.price).toLocaleString(undefined,{minimumFractionDigits:2})}/unit</span>` : '';
     return `
       <tr>
         <td style="font-size:12px;color:var(--text-muted);">${new Date(tx.timestamp).toLocaleString()}</td>
-        <td style="font-weight:700;font-family:monospace;">${tx.sku}</td>
-        <td>${tx.productName}${tx.category ? ` <span style="font-size:11px;color:var(--text-muted);">(${tx.category})</span>` : ''}</td>
-        <td style="color:var(--danger-color);font-weight:700;">-${tx.quantity}${locInfo}${priceInfo}</td>
-        <td style="font-size:12px;color:var(--text-muted);">${tx.operator || ''}</td>
+        <td style="font-weight:700;font-family:monospace;">${escapeHtml(tx.sku)}</td>
+        <td>${escapeHtml(tx.productName)}${tx.category ? ` <span style="font-size:11px;color:var(--text-muted);">(${escapeHtml(tx.category)})</span>` : ''}</td>
+        <td style="color:var(--danger-color);font-weight:700;">-${escapeHtml(tx.quantity)}${locInfo}${priceInfo}</td>
+        <td style="font-size:12px;color:var(--text-muted);">${escapeHtml(tx.operator || '')}</td>
       </tr>
     `;
   }).join('');
@@ -753,11 +767,11 @@ function renderBarcodeCards(products) {
   }
 
   barcodeGrid.innerHTML = matched.map(p => `
-    <div class="barcode-card" data-sku="${p.sku}">
-      <div class="barcode-card-sku">${p.sku}</div>
-      <div class="barcode-card-name">${p.name}</div>
-      <canvas id="bc-canvas-${p.sku}"></canvas>
-      <div style="font-size:11px; color:var(--text-muted);"><i class="fa-solid fa-location-dot" style="margin-right:4px;"></i>${formatLocationDisplay(p.location, p.stock_on_hand)}</div>
+    <div class="barcode-card" data-sku="${escapeHtml(p.sku)}">
+      <div class="barcode-card-sku">${escapeHtml(p.sku)}</div>
+      <div class="barcode-card-name">${escapeHtml(p.name)}</div>
+      <canvas id="bc-canvas-${escapeHtml(p.sku)}"></canvas>
+      <div style="font-size:11px; color:var(--text-muted);"><i class="fa-solid fa-location-dot" style="margin-right:4px;"></i>${escapeHtml(formatLocationDisplay(p.location, p.stock_on_hand))}</div>
     </div>
   `).join('');
 
@@ -826,17 +840,17 @@ async function triggerMockScan() {
 
     resultBox.innerHTML = `
       <div class="scanned-product-result">
-        <h4 style="color:var(--accent); font-size:16px; margin-bottom: 5px;"><i class="fa-solid fa-barcode" style="margin-right:6px;"></i>Scan Match: ${product.sku}</h4>
-        <div style="font-size:14px; margin-bottom: 3px;"><strong>Name:</strong> ${product.name}</div>
-        <div style="font-size:14px; margin-bottom: 3px;"><strong>Category:</strong> ${product.category}</div>
-        <div style="font-size:14px; margin-bottom: 3px;"><strong>Stock On Hand:</strong> ${product.stock_on_hand} units</div>
-        <div style="font-size:14px; margin-bottom: 3px;"><strong>Reserved Stock:</strong> ${product.reserved_stock} units</div>
-        <div style="font-size:14px; margin-bottom: 3px;"><strong>Available Stock:</strong> ${product.available_stock} units</div>
-        <div style="font-size:14px; margin-bottom: 3px;"><strong>Location:</strong> ${formatLocationDisplay(product.location, product.stock_on_hand)}</div>
-        <div style="margin-top:5px;"><span class="status ${statusClass}">${product.status}</span></div>
+        <h4 style="color:var(--accent); font-size:16px; margin-bottom: 5px;"><i class="fa-solid fa-barcode" style="margin-right:6px;"></i>Scan Match: ${escapeHtml(product.sku)}</h4>
+        <div style="font-size:14px; margin-bottom: 3px;"><strong>Name:</strong> ${escapeHtml(product.name)}</div>
+        <div style="font-size:14px; margin-bottom: 3px;"><strong>Category:</strong> ${escapeHtml(product.category)}</div>
+        <div style="font-size:14px; margin-bottom: 3px;"><strong>Stock On Hand:</strong> ${escapeHtml(product.stock_on_hand)} units</div>
+        <div style="font-size:14px; margin-bottom: 3px;"><strong>Reserved Stock:</strong> ${escapeHtml(product.reserved_stock)} units</div>
+        <div style="font-size:14px; margin-bottom: 3px;"><strong>Available Stock:</strong> ${escapeHtml(product.available_stock)} units</div>
+        <div style="font-size:14px; margin-bottom: 3px;"><strong>Location:</strong> ${escapeHtml(formatLocationDisplay(product.location, product.stock_on_hand))}</div>
+        <div style="margin-top:5px;"><span class="status ${statusClass}">${escapeHtml(product.status)}</span></div>
         <div style="display:flex; gap:10px; margin-top: 15px;">
-          <button class="btn btn-secondary" onclick="quickTransact('in', '${product.sku}')">Stock In (+)</button>
-          <button class="btn btn-secondary" onclick="quickTransact('out', '${product.sku}')">Stock Out (-)</button>
+          <button class="btn btn-secondary" onclick="quickTransact('in', '${escapeHtml(product.sku)}')">Stock In (+)</button>
+          <button class="btn btn-secondary" onclick="quickTransact('out', '${escapeHtml(product.sku)}')">Stock Out (-)</button>
         </div>
       </div>
     `;
@@ -919,9 +933,9 @@ async function renderReportsSection() {
     } else {
       tbody.innerHTML = locationStatsArray.map(item => `
         <tr>
-          <td style="font-weight:700;"><i class="fa-solid fa-location-dot" style="margin-right:6px;color:var(--accent);"></i>${item.name}</td>
-          <td>${item.skuCount} SKU types</td>
-          <td style="font-family:'JetBrains Mono',monospace;">${item.totalUnits} units</td>
+          <td style="font-weight:700;"><i class="fa-solid fa-location-dot" style="margin-right:6px;color:var(--accent);"></i>${escapeHtml(item.name)}</td>
+          <td>${escapeHtml(item.skuCount)} SKU types</td>
+          <td style="font-family:'JetBrains Mono',monospace;">${escapeHtml(item.totalUnits)} units</td>
           <td style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--success-color);">₱${item.valuation.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           <td>
             <div style="display:flex; align-items:center; gap:8px;">
@@ -1132,7 +1146,7 @@ async function renderSettingsSection() {
   // Active Operator selector
   const userSelect = document.getElementById('set-active-operator');
   if (userSelect && currentUser) {
-    userSelect.innerHTML = users.map(u => `<option value="${u.username}">${u.name} (${u.role})</option>`).join('');
+    userSelect.innerHTML = users.map(u => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.name)} (${escapeHtml(u.role)})</option>`).join('');
     userSelect.value = currentUser.username;
   }
 
@@ -1141,8 +1155,8 @@ async function renderSettingsSection() {
   if (catContainer) {
     catContainer.innerHTML = settingsData.categories.map(c => `
       <span class="tag-pill">
-        ${c}
-        <button onclick="removeCategorySetting('${c}')"><i class="fa-solid fa-xmark"></i></button>
+        ${escapeHtml(c)}
+        <button onclick="removeCategorySetting('${escapeHtml(c)}')"><i class="fa-solid fa-xmark"></i></button>
       </span>
     `).join('');
   }
@@ -1152,8 +1166,8 @@ async function renderSettingsSection() {
   if (locContainer) {
     locContainer.innerHTML = settingsData.locations.map(l => `
       <span class="tag-pill">
-        ${l}
-        <button onclick="removeLocationSetting('${l}')"><i class="fa-solid fa-xmark"></i></button>
+        ${escapeHtml(l)}
+        <button onclick="removeLocationSetting('${escapeHtml(l)}')"><i class="fa-solid fa-xmark"></i></button>
       </span>
     `).join('');
   }
@@ -2339,28 +2353,28 @@ async function loadAdminUsers() {
       }
 
       listEl.innerHTML = users.map(u => {
-        const name   = u.full_name || u.name || '(No name)';
-        const email  = u.email || '(No email)';
-        const status = u.status || 'unknown';
-        const role   = u.role || 'Operator';
-        const id     = u.id || '';
+        const name   = escapeHtml(u.full_name || u.name || '(No name)');
+        const email  = escapeHtml(u.email || '(No email)');
+        const status = escapeHtml(u.status || 'unknown');
+        const role   = escapeHtml(u.role || 'Operator');
+        const id     = escapeHtml(u.id || '');
         return `
         <div style="background:var(--bg-primary); border:1px solid var(--border-color); padding:12px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
           <div>
             <div style="font-weight:600; font-size:14px; margin-bottom:4px;">${name}</div>
-            <div style="font-size:12px; color:var(--text-muted);">${email} &bull; <span style="color:${status === 'pending' ? 'var(--warning-color)' : 'var(--text-secondary)'}">${status.toUpperCase()}</span></div>
+            <div style="font-size:12px; color:var(--text-muted);">${email} &bull; <span style="color:${u.status === 'pending' ? 'var(--warning-color)' : 'var(--text-secondary)'}">${status.toUpperCase()}</span></div>
           </div>
           <div style="display:flex; gap:8px;">
-            ${status === 'pending' ? `<button class="btn btn-secondary" onclick="WMSAuth.approveUser('${id}').then(()=>loadAdminUsers())" style="padding:6px 10px; font-size:12px; color:var(--success-color); border-color:var(--success-color);"><i class="fa-solid fa-check"></i> Approve</button>` : ''}
+            ${u.status === 'pending' ? `<button class="btn btn-secondary" onclick="WMSAuth.approveUser('${id}').then(()=>loadAdminUsers())" style="padding:6px 10px; font-size:12px; color:var(--success-color); border-color:var(--success-color);"><i class="fa-solid fa-check"></i> Approve</button>` : ''}
             <select onchange="WMSAuth.changeUserRole('${id}', this.value).then(()=>loadAdminUsers())" style="padding:6px; font-size:12px; border-radius:6px; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary);">
-              <option value="Operator" ${role === 'Operator' ? 'selected' : ''}>Operator</option>
-              <option value="Administrator" ${role === 'Administrator' ? 'selected' : ''}>Administrator</option>
+              <option value="Operator" ${u.role === 'Operator' ? 'selected' : ''}>Operator</option>
+              <option value="Administrator" ${u.role === 'Administrator' ? 'selected' : ''}>Administrator</option>
             </select>
           </div>
         </div>
       `}).join('');
     } catch (err) {
-      listEl.innerHTML = `<div style="color:var(--danger-color);text-align:center;padding:20px;">Error loading users: ${err.message}</div>`;
+      listEl.innerHTML = `<div style="color:var(--danger-color);text-align:center;padding:20px;">Error loading users: ${escapeHtml(err.message)}</div>`;
     }
   } else {
     listEl.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">Admin functions require live Supabase auth</div>';
@@ -2384,18 +2398,18 @@ async function renderApprovalsSection() {
 
       tbody.innerHTML = users.map(u => {
         const isBypass = u.id === '00000000-0000-0000-0000-000000000000';
-        const name   = u.full_name || u.name || '(No name)';
-        const email  = u.email || '(No email)';
-        const status = u.status || 'unknown';
-        const role   = u.role || 'Operator';
-        const id     = u.id || '';
+        const name   = escapeHtml(u.full_name || u.name || '(No name)');
+        const email  = escapeHtml(u.email || '(No email)');
+        const status = escapeHtml(u.status || 'unknown');
+        const role   = escapeHtml(u.role || 'Operator');
+        const id     = escapeHtml(u.id || '');
         
         let statusBadgeClass = 'pending';
-        if (status === 'approved') statusBadgeClass = 'approved';
-        if (status === 'rejected') statusBadgeClass = 'rejected';
+        if (u.status === 'approved') statusBadgeClass = 'approved';
+        if (u.status === 'rejected') statusBadgeClass = 'rejected';
 
         let actionButtons = '';
-        if (status === 'pending') {
+        if (u.status === 'pending') {
           actionButtons = `
             <button class="btn btn-secondary approve-btn" data-id="${id}" style="padding:6px 10px; font-size:12px; color:var(--success-color); border-color:var(--success-color);"><i class="fa-solid fa-check"></i> Approve</button>
             <button class="btn btn-secondary reject-btn" data-id="${id}" style="padding:6px 10px; font-size:12px; color:var(--danger-color); border-color:var(--danger-color); margin-left:6px;"><i class="fa-solid fa-xmark"></i> Reject</button>
@@ -2410,8 +2424,8 @@ async function renderApprovalsSection() {
           ? `<span style="font-weight:600; font-size:12px;">${role}</span>`
           : `
             <select class="role-select" data-id="${id}" style="padding:6px; font-size:12px; border-radius:6px; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary);">
-              <option value="Operator" ${role === 'Operator' ? 'selected' : ''}>Operator</option>
-              <option value="Administrator" ${role === 'Administrator' ? 'selected' : ''}>Administrator</option>
+              <option value="Operator" ${u.role === 'Operator' ? 'selected' : ''}>Operator</option>
+              <option value="Administrator" ${u.role === 'Administrator' ? 'selected' : ''}>Administrator</option>
             </select>
           `;
 
@@ -2470,7 +2484,7 @@ async function renderApprovalsSection() {
       });
 
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--danger-color);">Error loading users: ${err.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--danger-color);">Error loading users: ${escapeHtml(err.message)}</td></tr>`;
     }
   } else {
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">User approval functions require live Supabase auth.</td></tr>';
@@ -2499,10 +2513,10 @@ const WMSActivityLog = {
       id: t.id,
       timestamp: t.timestamp,
       type: 'transaction',
-      event: t.type, // 'Stock In', 'Stock Out'
-      title: `${t.type}: ${t.productName} (${t.sku})`,
-      desc: `Qty: ${t.quantity} &bull; Loc: ${t.location} &bull; Ref: ${t.docRef}${t.notes ? ` &bull; Notes: ${t.notes}` : ''}`,
-      operator: t.operator || 'System',
+      event: t.type,
+      title: `${escapeHtml(t.type)}: ${escapeHtml(t.productName)} (${escapeHtml(t.sku)})`,
+      desc: `Qty: ${escapeHtml(t.quantity)} &bull; Loc: ${escapeHtml(t.location)} &bull; Ref: ${escapeHtml(t.docRef)}${t.notes ? ` &bull; Notes: ${escapeHtml(t.notes)}` : ''}`,
+      operator: escapeHtml(t.operator || 'System'),
       dateObj: new Date(t.timestamp)
     }));
 
@@ -2510,10 +2524,10 @@ const WMSActivityLog = {
       id: l.id || l.timestamp,
       timestamp: l.timestamp,
       type: 'auth',
-      event: l.event, // 'login', 'logout'
-      title: `User ${l.event === 'login' ? 'Signed In' : 'Signed Out'}: ${l.full_name}`,
-      desc: `Email: ${l.email} &bull; Timestamp: ${new Date(l.timestamp).toLocaleString()}`,
-      operator: l.full_name,
+      event: l.event,
+      title: `User ${l.event === 'login' ? 'Signed In' : 'Signed Out'}: ${escapeHtml(l.full_name)}`,
+      desc: `Email: ${escapeHtml(l.email)} &bull; Timestamp: ${new Date(l.timestamp).toLocaleString()}`,
+      operator: escapeHtml(l.full_name),
       dateObj: new Date(l.timestamp)
     }));
 
@@ -2537,9 +2551,9 @@ const WMSActivityLog = {
           timestamp: newTx.timestamp,
           type: 'transaction',
           event: newTx.type,
-          title: `${newTx.type}: ${newTx.product_name || newTx.productName} (${newTx.sku})`,
-          desc: `Qty: ${newTx.quantity} &bull; Loc: ${newTx.location || 'N/A'} &bull; Ref: ${newTx.doc_ref || newTx.docRef || 'N/A'}${newTx.notes ? ` &bull; Notes: ${newTx.notes}` : ''}`,
-          operator: newTx.operator || 'System',
+          title: `${escapeHtml(newTx.type)}: ${escapeHtml(newTx.product_name || newTx.productName)} (${escapeHtml(newTx.sku)})`,
+          desc: `Qty: ${escapeHtml(newTx.quantity)} &bull; Loc: ${escapeHtml(newTx.location || 'N/A')} &bull; Ref: ${escapeHtml(newTx.doc_ref || newTx.docRef || 'N/A')}${newTx.notes ? ` &bull; Notes: ${escapeHtml(newTx.notes)}` : ''}`,
+          operator: escapeHtml(newTx.operator || 'System'),
           dateObj: new Date(newTx.timestamp)
         };
         this.addRealtimeLog(t);
@@ -2551,9 +2565,9 @@ const WMSActivityLog = {
           timestamp: newLogin.timestamp,
           type: 'auth',
           event: newLogin.event,
-          title: `User ${newLogin.event === 'login' ? 'Signed In' : 'Signed Out'}: ${newLogin.full_name}`,
-          desc: `Email: ${newLogin.email} &bull; Timestamp: ${new Date(newLogin.timestamp).toLocaleString()}`,
-          operator: newLogin.full_name,
+          title: `User ${newLogin.event === 'login' ? 'Signed In' : 'Signed Out'}: ${escapeHtml(newLogin.full_name)}`,
+          desc: `Email: ${escapeHtml(newLogin.email)} &bull; Timestamp: ${new Date(newLogin.timestamp).toLocaleString()}`,
+          operator: escapeHtml(newLogin.full_name),
           dateObj: new Date(newLogin.timestamp)
         };
         this.addRealtimeLog(l);
