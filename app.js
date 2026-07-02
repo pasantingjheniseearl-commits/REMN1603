@@ -706,18 +706,6 @@ async function renderBarcodeSection() {
   await renderBarcodeList();
   await generateBarcodePreview('SAMPLE001');
 }
-  // Click card → auto-fill scanner
-  barcodeGrid.querySelectorAll('.barcode-card').forEach(card => {
-    card.addEventListener('click', async () => {
-      const sku = card.getAttribute('data-sku');
-      const scannerInput = document.getElementById('mock-scan-input');
-      if (scannerInput) {
-        scannerInput.value = sku;
-        await triggerMockScan();
-      }
-    });
-  });
-}
 
 function drawFallbackBarcode(canvas, text) {
   const ctx = canvas.getContext('2d');
@@ -2032,6 +2020,10 @@ function setupEventListeners() {
   const barcodeFontSizeInput = document.getElementById('barcode-fontSize');
 
   const updateBarcodePreview = () => {
+    if (typeof JsBarcode === 'undefined') {
+      console.log('JsBarcode not yet loaded');
+      return;
+    }
     const previewSku = 'SAMPLE001';
     generateBarcodePreview(previewSku);
   };
@@ -2039,7 +2031,8 @@ function setupEventListeners() {
   if (barcodeFormatSelect) barcodeFormatSelect.addEventListener('change', updateBarcodePreview);
   if (barcodeWidthSlider) {
     barcodeWidthSlider.addEventListener('input', (e) => {
-      document.getElementById('barcode-width-display').textContent = parseFloat(e.target.value).toFixed(1) + 'x';
+      const display = document.getElementById('barcode-width-display');
+      if (display) display.textContent = parseFloat(e.target.value).toFixed(1) + 'x';
       updateBarcodePreview();
     });
   }
@@ -2048,9 +2041,6 @@ function setupEventListeners() {
   if (barcodeMarginInput) barcodeMarginInput.addEventListener('change', updateBarcodePreview);
   if (barcodeFontSizeInput) barcodeFontSizeInput.addEventListener('change', updateBarcodePreview);
 
-  // Initial barcode preview
-  updateBarcodePreview();
-
   // ── Barcode Search & Selection ──
   const barcodeSearchInput = document.getElementById('barcode-search');
   if (barcodeSearchInput) {
@@ -2058,9 +2048,6 @@ function setupEventListeners() {
       await renderBarcodeList();
     });
   }
-
-  // Initialize barcode list
-  await renderBarcodeList();
 
   // User Operators Form Submit
   const userForm = document.getElementById('add-user-form');
