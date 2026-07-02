@@ -1770,3 +1770,141 @@ table th {
   border-radius: var(--border-radius-md);
   border-left-width: 4px;
 }
+
+
+/* ============================================================
+   UI ENHANCEMENTS — applied over the base design system
+   All changes are purely visual; no layout or data is affected.
+   ============================================================ */
+
+/* 1. GLASSMORPHISM CARD DEPTH
+   Top highlight border makes cards feel elevated (frosted glass look). */
+.card, .widget, .table-section, .scanner-widget {
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+body.light-theme .card,
+body.light-theme .widget,
+body.light-theme .table-section,
+body.light-theme .scanner-widget {
+  border-top: 1px solid rgba(255, 255, 255, 0.9);
+}
+
+/* 2. SIDEBAR — active nav icon glow */
+.menu a.active .nav-icon {
+  box-shadow: 0 0 16px rgba(var(--accent-rgb), 0.55),
+              0 4px 12px rgba(var(--accent-rgb), 0.4);
+}
+
+/* 3. KPI CARDS — always-on gradient top bar per card */
+.cards .card:nth-child(1)::before { background: linear-gradient(90deg, #06b6d4, #3b82f6); }
+.cards .card:nth-child(2)::before { background: linear-gradient(90deg, #3b82f6, #8b5cf6); }
+.cards .card:nth-child(3)::before { background: linear-gradient(90deg, #f59e0b, #f43f5e); }
+.cards .card:nth-child(4)::before { background: linear-gradient(90deg, #f43f5e, #ec4899); }
+
+/* 4. TABLE ROWS — directional shimmer hover */
+table tr:hover td {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--accent-rgb), 0.04) 0%,
+    rgba(255, 255, 255, 0.012) 100%
+  ) !important;
+}
+
+/* 5. TOPBAR — frosted glass effect */
+.topbar {
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  background: rgba(19, 28, 46, 0.82);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+body.light-theme .topbar {
+  background: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+/* 6. STATUS BADGES — left-border tag style for faster scanning */
+.status {
+  padding: 4px 10px 4px 8px;
+  border-radius: 6px;
+  border-left: 3px solid transparent;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.status.in-stock     { border-left-color: var(--success-color); }
+.status.low-stock    { border-left-color: var(--warning-color); }
+.status.out-of-stock { border-left-color: var(--danger-color);  }
+
+/* 7. BUTTONS — gradient primary button */
+.btn:not(.btn-secondary):not(.btn-danger) {
+  background: var(--accent-gradient);
+  box-shadow: 0 4px 14px rgba(var(--accent-rgb), 0.25);
+}
+.btn:not(.btn-secondary):not(.btn-danger):hover {
+  background: var(--accent-gradient);
+  filter: brightness(1.1);
+  box-shadow: 0 6px 22px rgba(var(--accent-rgb), 0.38);
+}
+
+/* 8. TYPOGRAPHY — widget header hierarchy bump */
+.widget-header h3 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+.table-header h2 {
+  font-size: 20px;
+  letter-spacing: -0.5px;
+}
+
+/* BONUS: Card icon pulse on hover */
+.card:hover .icon {
+  box-shadow: 0 0 18px rgba(var(--accent-rgb), 0.25);
+  transform: scale(1.05);
+  transition: all 0.25s ease;
+}
+.card .icon {
+  transition: all 0.25s ease;
+}
+
+/* BONUS: Activity feed row hover highlight */
+.feed-item {
+  border-radius: var(--border-radius-sm);
+  transition: background 0.15s;
+}
+.feed-item:hover {
+  background: rgba(var(--accent-rgb), 0.05);
+}
+
+/* BONUS: Input focus glow refinement */
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.12);
+}
+
+/* BONUS: Modal content — stronger shadow and tighter top highlight */
+.modal-content {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 32px 64px -16px rgba(0, 0, 0, 0.7),
+              0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* BONUS: Barcode cards — accent border on hover instead of color shift */
+.barcode-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.2);
+  transform: translateY(-2px) scale(1.01);
+}
+
+/* BONUS: Action buttons — rounded pill style */
+.action-btn {
+  border-radius: 8px;
+}
+.action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(var(--accent-rgb), 0.2);
+}
+.action-btn.delete:hover {
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.25);
+}
