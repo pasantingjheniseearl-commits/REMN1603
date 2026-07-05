@@ -598,17 +598,21 @@ body.sidebar-collapsed .main {
   font-size: 20px;
 }
 
+/* card .title and .value */
 .card .title {
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 .card .value {
-  font-size: 32px;
-  font-weight: 700;
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
   color: var(--text-primary);
-  letter-spacing: -0.5px;
 }
 
 /* WIDGETS & SECTIONS GRID */
@@ -635,9 +639,11 @@ body.sidebar-collapsed .main {
   margin-bottom: 20px;
 }
 
+/* widget-header h3 — single authoritative rule (15px, tight tracking) */
 .widget-header h3 {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
+  letter-spacing: -0.2px;
 }
 
 /* BUTTONS */
@@ -712,8 +718,9 @@ body.sidebar-collapsed .main {
   gap: 15px;
 }
 
+/* table-header h2 — authoritative value (matches UI enhancement section) */
 .table-header h2 {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.5px;
 }
@@ -756,10 +763,12 @@ table {
 table th {
   background: var(--bg-primary);
   padding: 14px 18px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   color: var(--text-secondary);
   border-bottom: 2px solid var(--border-color);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
 }
 
 table th:first-child {
@@ -773,7 +782,8 @@ table th:last-child {
 table td {
   padding: 16px 18px;
   border-bottom: 1px solid var(--border-color);
-  font-size: 14px;
+  font-size: 13.5px;
+  line-height: 1.4;
   color: var(--text-primary);
 }
 
@@ -1534,41 +1544,11 @@ th.sortable-header.sorted-desc i {
   color: var(--text-muted);
 }
 
-/* Table data legibility */
-table td {
-  font-size: 13.5px;
-  line-height: 1.4;
-}
+/* Table data legibility — already set in base table td/th rules above */
 
-table th {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-}
+/* KPI card values — values already set in base .card section above */
 
-/* KPI card values — bigger impact */
-.card .value {
-  font-size: 36px;
-  font-weight: 800;
-  letter-spacing: -1px;
-  font-variant-numeric: tabular-nums;
-}
-
-.card .title {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-/* Widget headers */
-.widget-header h3 {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.2px;
-}
+/* Widget headers — already set in base .widget-header h3 rule above */
 
 /* ============================================================
    EXPORT FILTER PANEL (Reports view)
@@ -1797,15 +1777,7 @@ body.sidebar-collapsed .menu a:hover {
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Premium table headers */
-table th {
-  background: var(--bg-primary) !important;
-  color: var(--text-secondary);
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: 0.8px;
-  border-bottom: 2px solid var(--border-color);
-}
+/* table th border-bottom already included in base table th rule above */
 
 .toast {
   backdrop-filter: blur(10px);
@@ -1888,16 +1860,7 @@ body.light-theme .topbar {
   box-shadow: 0 6px 22px rgba(var(--accent-rgb), 0.38);
 }
 
-/* 8. TYPOGRAPHY — widget header hierarchy bump */
-.widget-header h3 {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.2px;
-}
-.table-header h2 {
-  font-size: 20px;
-  letter-spacing: -0.5px;
-}
+/* 8. TYPOGRAPHY — authoritative values now consolidated in base rules above */
 
 /* BONUS: Card icon pulse on hover */
 .card:hover .icon {
