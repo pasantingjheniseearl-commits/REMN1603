@@ -251,11 +251,24 @@ async function renderDashboard() {
   const lowStockCount = products.filter(p => p.status === 'Low Stock').length;
   const outOfStockCount = products.filter(p => p.status === 'Out of Stock').length;
 
+  // Near-expiry KPI: products expiring within 30 days (or already expired)
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const nearExpiryCount = products.filter(p => {
+    if (!p.expiry_date) return false;
+    const expDate = new Date(p.expiry_date);
+    expDate.setHours(0, 0, 0, 0);
+    const daysLeft = Math.floor((expDate - now) / (1000 * 60 * 60 * 24));
+    return daysLeft <= 30;
+  }).length;
+
   // Render KPIs
   document.getElementById('kpi-total-sku').textContent = totalItems.toLocaleString();
   document.getElementById('kpi-total-stock').textContent = totalStock.toLocaleString();
   document.getElementById('kpi-low-stock').textContent = lowStockCount.toLocaleString();
   document.getElementById('kpi-out-of-stock').textContent = outOfStockCount.toLocaleString();
+  const nearExpiryEl = document.getElementById('kpi-near-expiry');
+  if (nearExpiryEl) nearExpiryEl.textContent = nearExpiryCount.toLocaleString();
 
   // Render Transaction Feed (Recent Activities)
   const feedContainer = document.getElementById('dashboard-transaction-feed');
@@ -1240,6 +1253,195 @@ function renderFallbackSVGCharts(products, dataByCat, locationStatsArray) {
   }
 }
 
+// ── Near Expiration Section ─────────────────────────────────────────────────
+window.renderExpirySection = async function renderExpirySection() {
+  const products = await getCachedProducts();
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  // Populate expiry category filter (once, only when empty)
+  const catFilter = document.getElementById('expiry-category-filter');
+  if (catFilter && catFilter.options.length <= 1) {
+    const cats = [...new Set(products.map(p => p.category).filter(Boolean))].sort();
+    cats.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c;
+      opt.textContent = c;
+      catFilter.appendChild(opt);
+    });
+  }
+
+  const daysFilter   = parseInt(document.getElementById('expiry-days-filter')?.value   ?? '30');
+  const searchQuery  = (document.getElementById('expiry-search')?.value ?? '').toLowerCase().trim();
+  const statusFilter = document.getElementById('expiry-status-filter')?.value ?? 'all';
+  const catFilterVal = catFilter?.value ?? 'all';
+
+  // Update threshold label
+  const thresholdLabel = document.getElementById('expiry-threshold-label');
+  if (thresholdLabel) thresholdLabel.textContent = daysFilter === 0 ? '∞' : daysFilter;
+
+  // Only products that carry an expiry date
+  const withExpiry = products.filter(p => p.expiry_date);
+
+  // Enrich each with computed daysLeft + expiryStatus
+  const enriched = withExpiry.map(p => {
+    const expDate = new Date(p.expiry_date);
+    expDate.setHours(0, 0, 0, 0);
+    const daysLeft = Math.floor((expDate - now) / (1000 * 60 * 60 * 24));
+    let expiryStatus = 'safe';
+    if (daysLeft < 0)        expiryStatus = 'expired';
+    else if (daysLeft <= 7)  expiryStatus = 'critical';
+    else if (daysLeft <= 30) expiryStatus = 'near';
+    return { ...p, daysLeft, expiryStatus, expDate };
+  });
+
+  // ── KPI strip (always global – not affected by table filters) ──
+  const expiredCount  = enriched.filter(p => p.expiryStatus === 'expired').length;
+  const criticalCount = enriched.filter(p => p.expiryStatus === 'critical').length;
+  const nearCount     = enriched.filter(p => p.expiryStatus === 'near').length;
+  const safeCount     = enriched.filter(p => p.expiryStatus === 'safe').length;
+
+  const setKpi = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setKpi('expiry-count-expired',  expiredCount);
+  setKpi('expiry-count-critical', criticalCount);
+  setKpi('expiry-count-near',     nearCount);
+  setKpi('expiry-count-ok',       safeCount);
+
+  // ── Table filters ──
+  let filtered = enriched;
+
+  // 0 = show only already-expired; otherwise show ≤ daysFilter days remaining
+  if (daysFilter === 0) {
+    filtered = filtered.filter(p => p.expiryStatus === 'expired');
+  } else {
+    filtered = filtered.filter(p => p.daysLeft <= daysFilter);
+  }
+
+  if (searchQuery) {
+    filtered = filtered.filter(p =>
+      p.sku.toLowerCase().includes(searchQuery) ||
+      p.name.toLowerCase().includes(searchQuery)
+    );
+  }
+
+  if (statusFilter !== 'all') {
+    filtered = filtered.filter(p => p.expiryStatus === statusFilter);
+  }
+
+  if (catFilterVal !== 'all') {
+    filtered = filtered.filter(p => p.category === catFilterVal);
+  }
+
+  // Sort: most urgent first (most negative / fewest days left at top)
+  filtered.sort((a, b) => a.daysLeft - b.daysLeft);
+
+  // ── Render table ──
+  const tbody = document.getElementById('expiry-table-body');
+  if (!tbody) return;
+
+  const authProfile = window.WMSAuth && WMSAuth.profile ? WMSAuth.profile : null;
+  const isOperator  = authProfile ? authProfile.role === 'Operator' : false;
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">
+      <i class="fa-solid fa-calendar-check" style="font-size:28px;opacity:0.35;display:block;margin-bottom:10px;"></i>
+      No products match the selected filters.
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(p => {
+    let statusLabel = '', badgeClass = '', daysDisplay = '';
+
+    if (p.expiryStatus === 'expired') {
+      statusLabel = 'Expired';
+      badgeClass  = 'expiry-badge-expired';
+      daysDisplay = `<span style="color:var(--danger-color);font-weight:700;font-family:monospace;">${Math.abs(p.daysLeft)}d overdue</span>`;
+    } else if (p.expiryStatus === 'critical') {
+      statusLabel = 'Critical';
+      badgeClass  = 'expiry-badge-critical';
+      daysDisplay = `<span style="color:#f97316;font-weight:700;font-family:monospace;">${p.daysLeft}d left</span>`;
+    } else if (p.expiryStatus === 'near') {
+      statusLabel = 'Near Expiry';
+      badgeClass  = 'expiry-badge-near';
+      daysDisplay = `<span style="color:var(--warning-color);font-weight:700;font-family:monospace;">${p.daysLeft}d left</span>`;
+    } else {
+      statusLabel = 'Safe';
+      badgeClass  = 'expiry-badge-safe';
+      daysDisplay = `<span style="color:var(--success-color);font-weight:700;font-family:monospace;">${p.daysLeft}d left</span>`;
+    }
+
+    const expiryFormatted = new Date(p.expiry_date).toLocaleDateString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric'
+    });
+
+    const actionsHtml = isOperator
+      ? `<span style="font-size:11px;color:var(--text-muted);font-style:italic;">View only</span>`
+      : `<button class="action-btn edit-expiry-btn" data-sku="${escapeHtml(p.sku)}" title="Edit Product"><i class="fa-solid fa-pen"></i></button>`;
+
+    return `<tr>
+      <td style="font-weight:700;font-family:monospace;">${escapeHtml(p.sku)}</td>
+      <td style="font-weight:500;">${escapeHtml(p.name)}</td>
+      <td>${escapeHtml(p.category)}</td>
+      <td style="font-size:12px;"><i class="fa-solid fa-location-dot" style="margin-right:4px;font-size:11px;color:var(--text-muted);"></i>${escapeHtml(formatLocationDisplay(p.location, p.stock_on_hand))}</td>
+      <td style="font-weight:600;">${escapeHtml(p.stock_on_hand)}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px;">${expiryFormatted}</td>
+      <td>${daysDisplay}</td>
+      <td><span class="expiry-status-badge ${badgeClass}">${statusLabel}</span></td>
+      <td class="admin-only"><div class="actions">${actionsHtml}</div></td>
+    </tr>`;
+  }).join('');
+
+  // Wire up edit buttons in the rendered slice
+  tbody.querySelectorAll('.edit-expiry-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await openEditProductModal(btn.getAttribute('data-sku'));
+    });
+  });
+};
+
+// Export near-expiry report as CSV
+window.exportExpiryCSV = async function() {
+  const products = await getCachedProducts();
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  const withExpiry = products
+    .filter(p => p.expiry_date)
+    .map(p => {
+      const expDate = new Date(p.expiry_date);
+      expDate.setHours(0, 0, 0, 0);
+      const daysLeft = Math.floor((expDate - now) / (1000 * 60 * 60 * 24));
+      let expiryStatus = 'Safe';
+      if (daysLeft < 0)        expiryStatus = 'Expired';
+      else if (daysLeft <= 7)  expiryStatus = 'Critical';
+      else if (daysLeft <= 30) expiryStatus = 'Near Expiry';
+      return { ...p, daysLeft, expiryStatus };
+    })
+    .sort((a, b) => a.daysLeft - b.daysLeft);
+
+  if (withExpiry.length === 0) {
+    showToast('No products with expiry dates to export.', 'warning');
+    return;
+  }
+
+  const header = 'SKU,Product Name,Category,Warehouse Location,Stock On Hand,Expiry Date,Days Left,Expiry Status\r\n';
+  const body = withExpiry.map(p =>
+    `"${p.sku}","${String(p.name).replace(/"/g,'""')}","${p.category}","${formatLocationDisplay(p.location, p.stock_on_hand)}",${p.stock_on_hand},"${p.expiry_date}",${p.daysLeft},"${p.expiryStatus}"`
+  ).join('\r\n');
+
+  const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href     = url;
+  link.download = `wms_expiry_report_${today()}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  showToast(`Exported ${withExpiry.length} expiry records as CSV`, 'success');
+};
+
 // Settings section configurations lists
 async function renderSettingsSection() {
   const settingsData = await WMSDatabase.getSettings();
@@ -1306,6 +1508,9 @@ async function onViewActivated(viewId) {
       await populateExportFilterDropdowns();
       await renderReportsSection();
       break;
+    case 'view-expiry':
+      await renderExpirySection();
+      break;
     case 'view-approvals':
       await renderApprovalsSection();
       break;
@@ -1319,15 +1524,16 @@ async function onViewActivated(viewId) {
 
   // Update topbar title to match the active view
   const viewTitles = {
-    'view-dashboard':  'Dashboard',
-    'view-inventory':  'Inventory',
-    'view-stock-in':   'Stock In',
-    'view-stock-out':  'Stock Out',
-    'view-barcode':    'Barcode & Scan',
-    'view-reports':    'Reports & Exports',
-    'view-approvals':  'User Approvals',
+    'view-dashboard':    'Dashboard',
+    'view-inventory':    'Inventory',
+    'view-stock-in':     'Stock In',
+    'view-stock-out':    'Stock Out',
+    'view-barcode':      'Barcode & Scan',
+    'view-reports':      'Reports & Exports',
+    'view-expiry':       'Near Expiration',
+    'view-approvals':    'User Approvals',
     'view-activity-log': 'Activity Log',
-    'view-settings':   'Settings'
+    'view-settings':     'Settings'
   };
   const titleEl = document.getElementById('header-warehouse-title');
   if (titleEl && viewTitles[viewId]) titleEl.textContent = viewTitles[viewId];
@@ -1438,6 +1644,10 @@ window.openEditProductModal = async function(sku) {
     }
     updateEditModalTotalStock();
   }
+
+  // Populate expiry date
+  const editExpiryInput = document.getElementById('edit-expiry');
+  if (editExpiryInput) editExpiryInput.value = product.expiry_date || '';
 
   editModalOverlay.classList.add('active');
 };
@@ -1655,6 +1865,7 @@ function setupEventListeners() {
       const reservedStock = parseInt(document.getElementById('add-reserved').value);
       const reorderLevel = parseInt(document.getElementById('add-min-qty').value);
       const price = parseFloat(document.getElementById('add-price').value) || 0;
+      const expiryDate = document.getElementById('add-expiry')?.value || null;
 
       if (!sku || !name || !category || !location || isNaN(stockOnHand) || isNaN(reservedStock) || isNaN(reorderLevel)) {
         showToast('All fields are required.', 'warning');
@@ -1681,7 +1892,8 @@ function setupEventListeners() {
           stock_on_hand: 0,
           reserved_stock: reservedStock,
           reorder_level: reorderLevel,
-          price
+          price,
+          expiry_date: expiryDate || null
         });
 
         if (stockOnHand > 0) {
@@ -1718,6 +1930,7 @@ function setupEventListeners() {
       const newReserved = parseInt(document.getElementById('edit-reserved').value);
       const newMinQty   = parseInt(document.getElementById('edit-min-qty').value);
       const newPrice    = parseFloat(document.getElementById('edit-price').value) || 0;
+      const newExpiry   = document.getElementById('edit-expiry')?.value || null;
 
       // Collect locations and validate
       const container = document.getElementById('edit-locations-container');
@@ -1783,7 +1996,8 @@ function setupEventListeners() {
           stock_on_hand: newQty,
           reserved_stock: newReserved,
           reorder_level: newMinQty,
-          price: newPrice
+          price: newPrice,
+          expiry_date: newExpiry || null
         });
 
         if (oldQty !== newQty) {
@@ -2350,7 +2564,19 @@ function openProfileModal() {
   const modal = document.getElementById('profileModal');
   if (!modal) return;
   modal.classList.add('active');
-  const user = WMSDatabase.getCurrentUser();
+
+  // Prefer the live Supabase auth profile — fall back to localStorage cache
+  const authProfile = window.WMSAuth && WMSAuth.profile ? WMSAuth.profile : null;
+  const user = authProfile
+    ? {
+        email:      authProfile.email      || '',
+        role:       authProfile.role        || 'Operator',
+        name:       authProfile.full_name   || '',
+        phone:      authProfile.phone       || '',
+        department: authProfile.department  || ''
+      }
+    : WMSDatabase.getCurrentUser();
+
   if (user) {
     const emailInput = document.getElementById('prof-email');
     if (emailInput) emailInput.value = user.email || '';
@@ -2692,7 +2918,7 @@ const WMSActivityLog = {
     this.renderLogs();
     
     // Notify admin
-    showToast(`🔔 Real-time log: ${item.title}`, 'info');
+    showToast(`🔔 Real-time: ${item.title}`, 'warning');
   },
 
   renderLogs() {
@@ -2791,12 +3017,11 @@ window.WMSActivityLog = WMSActivityLog;
 
 // --- DOMCONTENTLOADED ENTRY POINT ---
 document.addEventListener('DOMContentLoaded', async () => {
-  // ── Clean up corrupt localStorage data from old offline mode ──
-  // These keys are no longer used in online-only mode and can contain
-  // malformed user rows that crash the admin UI
+  // Clean up legacy offline-mode keys that are no longer used in online-only mode.
+  // NOTE: wms_bypass_session / wms_bypass_profile are intentionally kept —
+  // auth.js uses them for the local/offline user login path.
   ['wms_local_users', 'wms_local_products', 'wms_local_transactions',
-   'wms_local_settings', 'wms_bypass_session', 'wms_bypass_profile',
-   'wms_bypass_profile_saved'].forEach(key => localStorage.removeItem(key));
+   'wms_local_settings'].forEach(key => localStorage.removeItem(key));
 
   // ── Auth guard: must be first ──────────────────────────────────
   if (window.WMSAuth) {
