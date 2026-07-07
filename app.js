@@ -489,17 +489,7 @@ function renderVirtualRows() {
   tbody.querySelectorAll('.delete-product-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const sku = btn.getAttribute('data-sku');
-      if (confirm(`Are you sure you want to delete SKU ${sku}? This action cannot be undone.`)) {
-        try {
-          await WMSDatabase.deleteProduct(sku);
-          productsCache = null;
-          showToast(`Successfully deleted SKU: ${sku}`, 'success');
-          await renderInventoryTable();
-          await renderDashboard();
-        } catch (e) {
-          showToast(`Error deleting product: ${e.message}`, 'error');
-        }
-      }
+      openDeleteProductConfirm(sku);
     });
   });
 }
@@ -634,7 +624,7 @@ async function renderStockInHistoryTable() {
   if (query) inTx = inTx.filter(t => t.sku.toUpperCase().includes(query));
 
   if (inTx.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:15px;">${query ? `No Stock In records for SKU &quot;<strong>${escapeHtml(query)}</strong>&quot;.` : 'No recent Stock In logs.'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:15px;">${query ? `No Stock In records for SKU &quot;<strong>${escapeHtml(query)}</strong>&quot;.` : 'No recent Stock In logs.'}</td></tr>`;
     return;
   }
 
@@ -649,6 +639,7 @@ async function renderStockInHistoryTable() {
         <td style="font-weight:700;font-family:monospace;">${escapeHtml(tx.sku)}</td>
         <td>${escapeHtml(tx.productName)}${tx.category ? ` <span style="font-size:11px;color:var(--text-muted);">(${escapeHtml(tx.category)})</span>` : ''}</td>
         <td style="color:var(--success-color);font-weight:700;">+${escapeHtml(tx.quantity)}${locInfo}${priceInfo}</td>
+        <td style="font-size:12px;color:var(--text-muted);font-family:monospace;">${escapeHtml(tx.docRef || 'N/A')}</td>
         <td style="font-size:12px;color:var(--text-muted);">${escapeHtml(tx.operator || '')}</td>
       </tr>
     `;
@@ -1781,23 +1772,8 @@ window.removeLocationSetting = async function(loc) {
 };
 
 window.resetDatabaseTrigger = async function() {
-  if (confirm('CRITICAL WARNING: This will reset all products, logs, operators, and settings to original defaults on the database. Are you absolutely sure?')) {
-    const success = await WMSDatabase.resetDatabase();
-    if (success) {
-      productsCache = null; // Clear cache
-      const settingsData = await WMSDatabase.getSettings();
-      currentTheme = settingsData.theme || 'dark';
-      applyTheme(currentTheme);
-      
-      await onViewActivated('view-dashboard');
-      const dashLink = document.querySelector('[data-view="view-dashboard"]');
-      if (dashLink) dashLink.click();
-      
-      showToast('Database successfully restored to default seeds!', 'success');
-    } else {
-      showToast('Failed to reset database.', 'error');
-    }
-  }
+  // Use typed confirmation modal instead of browser confirm() for safety
+  openResetConfirmModal();
 };
 
 
@@ -2039,6 +2015,7 @@ function setupEventListeners() {
       const location = document.getElementById('stock-in-location').value;
       const price    = parseFloat(document.getElementById('stock-in-price').value) || 0;
       const notes    = document.getElementById('stock-in-notes').value.trim() || '';
+      const docRef   = (document.getElementById('stock-in-doc-ref')?.value || '').trim() || 'N/A';
 
       if (!sku)      { showToast('Please type or select a SKU first.', 'warning'); return; }
       if (qty <= 0)  { showToast('Quantity must be greater than 0.', 'error');     return; }
@@ -2055,7 +2032,7 @@ function setupEventListeners() {
         await WMSDatabase.logTransaction({
           type: 'Stock In', sku, productName: product.name,
           category: product.category, quantity: qty,
-          price, docRef: 'N/A', location, notes
+          price, docRef, location, notes
         });
         productsCache = null;
         stockInForm.reset();
@@ -2628,11 +2605,15 @@ async function saveProfileInfo(e) {
   const phone = document.getElementById('prof-phone').value.trim();
   const dept = document.getElementById('prof-dept').value.trim();
 
+  if (!name) { showToast('Full name is required.', 'warning'); return; }
+
   if (window.WMSAuth && typeof WMSAuth.updateProfile === 'function') {
     try {
       await WMSAuth.updateProfile({ full_name: name, phone, department: dept });
       showToast('Profile updated successfully', 'success');
+      // Sync sidebar footer with the new name/role immediately
       updateGlobalHeaderProfile();
+      if (window.WMSAuth) WMSAuth._renderHeaderUser();
     } catch (err) {
       showToast('Failed to update profile: ' + err.message, 'error');
     }
@@ -2677,6 +2658,8 @@ async function loadAdminUsers() {
   if (!listEl) return;
   listEl.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">Loading...</div>';
 
+  const currentUserId = window.WMSAuth?.session?.user?.id || window.WMSAuth?.profile?.id || '';
+
   if (window.WMSAuth && typeof WMSAuth.getAllUsers === 'function') {
     try {
       const users = await WMSAuth.getAllUsers();
@@ -2691,21 +2674,51 @@ async function loadAdminUsers() {
         const status = escapeHtml(u.status || 'unknown');
         const role   = escapeHtml(u.role || 'Operator');
         const id     = escapeHtml(u.id || '');
+        const joined = u.created_at ? new Date(u.created_at).toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' }) : '—';
+        const isSelf = u.id === currentUserId;
+        const statusColor = u.status === 'approved' ? 'var(--success-color)' : u.status === 'pending' ? 'var(--warning-color)' : 'var(--danger-color)';
         return `
-        <div style="background:var(--bg-primary); border:1px solid var(--border-color); padding:12px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <div style="font-weight:600; font-size:14px; margin-bottom:4px;">${name}</div>
-            <div style="font-size:12px; color:var(--text-muted);">${email} &bull; <span style="color:${u.status === 'pending' ? 'var(--warning-color)' : 'var(--text-secondary)'}">${status.toUpperCase()}</span></div>
+        <div style="background:var(--bg-primary); border:1px solid var(--border-color); padding:12px 14px; border-radius:8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600; font-size:14px; margin-bottom:3px;">${name} ${isSelf ? '<span style="font-size:10px;color:var(--accent);font-weight:700;">(You)</span>' : ''}</div>
+            <div style="font-size:12px; color:var(--text-muted);">${email} &bull; Joined ${joined}</div>
+            <div style="margin-top:3px;font-size:11px;font-weight:600;color:${statusColor};">${status.toUpperCase()}</div>
           </div>
-          <div style="display:flex; gap:8px;">
-            ${u.status === 'pending' ? `<button class="btn btn-secondary" onclick="WMSAuth.approveUser('${id}').then(()=>loadAdminUsers())" style="padding:6px 10px; font-size:12px; color:var(--success-color); border-color:var(--success-color);"><i class="fa-solid fa-check"></i> Approve</button>` : ''}
-            <select onchange="WMSAuth.changeUserRole('${id}', this.value).then(()=>loadAdminUsers())" style="padding:6px; font-size:12px; border-radius:6px; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary);">
+          <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+            ${u.status === 'pending' ? `<button class="btn btn-secondary admin-approve-btn" data-id="${id}" style="padding:6px 10px; font-size:12px; color:var(--success-color); border-color:var(--success-color);"><i class="fa-solid fa-check"></i> Approve</button>` : ''}
+            <select class="admin-role-select" data-id="${id}" style="padding:6px; font-size:12px; border-radius:6px; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary);">
               <option value="Operator" ${u.role === 'Operator' ? 'selected' : ''}>Operator</option>
               <option value="Administrator" ${u.role === 'Administrator' ? 'selected' : ''}>Administrator</option>
             </select>
+            ${!isSelf ? `<button class="btn btn-secondary admin-delete-btn" data-id="${id}" data-name="${name}" style="padding:6px 10px; font-size:12px; color:var(--danger-color); border-color:var(--danger-color);"><i class="fa-solid fa-trash"></i></button>` : ''}
           </div>
         </div>
       `}).join('');
+
+      listEl.querySelectorAll('.admin-approve-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-id');
+          try { await WMSAuth.approveUser(id); showToast('User approved.', 'success'); await loadAdminUsers(); }
+          catch (e) { showToast('Failed: ' + e.message, 'error'); }
+        });
+      });
+
+      listEl.querySelectorAll('.admin-role-select').forEach(sel => {
+        sel.addEventListener('change', async () => {
+          const id = sel.getAttribute('data-id');
+          try { await WMSAuth.changeUserRole(id, sel.value); showToast('Role updated.', 'success'); await loadAdminUsers(); }
+          catch (e) { showToast('Failed: ' + e.message, 'error'); sel.value = sel.value === 'Operator' ? 'Administrator' : 'Operator'; }
+        });
+      });
+
+      listEl.querySelectorAll('.admin-delete-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-id');
+          const name = btn.getAttribute('data-name');
+          openDeleteUserConfirm(id, name, 'loadAdminUsers');
+        });
+      });
+
     } catch (err) {
       listEl.innerHTML = `<div style="color:var(--danger-color);text-align:center;padding:20px;">Error loading users: ${escapeHtml(err.message)}</div>`;
     }
@@ -2719,108 +2732,104 @@ async function renderApprovalsSection() {
   const tbody = document.getElementById('approvals-table-body');
   if (!tbody) return;
 
-  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">Loading users...</td></tr>';
-  
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted);">Loading users...</td></tr>';
+
+  const currentUserId = window.WMSAuth?.session?.user?.id || window.WMSAuth?.profile?.id || '';
+
   if (window.WMSAuth && typeof WMSAuth.getAllUsers === 'function') {
     try {
       const users = await WMSAuth.getAllUsers();
       if (!users || users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">No users found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted);">No users found.</td></tr>';
         return;
       }
 
       tbody.innerHTML = users.map(u => {
-        const isBypass = u.id === '00000000-0000-0000-0000-000000000000';
+        const isSelf = u.id === currentUserId;
         const name   = escapeHtml(u.full_name || u.name || '(No name)');
         const email  = escapeHtml(u.email || '(No email)');
-        const status = escapeHtml(u.status || 'unknown');
-        const role   = escapeHtml(u.role || 'Operator');
+        const status = u.status || 'unknown';
         const id     = escapeHtml(u.id || '');
-        
-        let statusBadgeClass = 'pending';
-        if (u.status === 'approved') statusBadgeClass = 'approved';
-        if (u.status === 'rejected') statusBadgeClass = 'rejected';
+        const joined = u.created_at ? new Date(u.created_at).toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' }) : '—';
+
+        let statusBadgeClass = 'status-badge-unknown';
+        if (status === 'approved') statusBadgeClass = 'status-badge-approved';
+        else if (status === 'pending') statusBadgeClass = 'status-badge-pending';
+        else if (status === 'rejected') statusBadgeClass = 'status-badge-rejected';
 
         let actionButtons = '';
-        if (u.status === 'pending') {
+        if (status === 'pending') {
           actionButtons = `
-            <button class="btn btn-secondary approve-btn" data-id="${id}" style="padding:6px 10px; font-size:12px; color:var(--success-color); border-color:var(--success-color);"><i class="fa-solid fa-check"></i> Approve</button>
-            <button class="btn btn-secondary reject-btn" data-id="${id}" style="padding:6px 10px; font-size:12px; color:var(--danger-color); border-color:var(--danger-color); margin-left:6px;"><i class="fa-solid fa-xmark"></i> Reject</button>
+            <button class="btn btn-secondary approve-btn" data-id="${id}" style="padding:6px 10px;font-size:12px;color:var(--success-color);border-color:var(--success-color);"><i class="fa-solid fa-check"></i> Approve</button>
+            <button class="btn btn-secondary reject-btn" data-id="${id}" style="padding:6px 10px;font-size:12px;color:var(--danger-color);border-color:var(--danger-color);margin-left:4px;"><i class="fa-solid fa-xmark"></i> Reject</button>
           `;
+        } else if (!isSelf) {
+          actionButtons = `<button class="btn btn-secondary delete-user-btn" data-id="${id}" data-name="${name}" style="padding:6px 10px;font-size:12px;color:var(--danger-color);border-color:var(--danger-color);"><i class="fa-solid fa-trash"></i> Remove</button>`;
         } else {
-          actionButtons = `
-            <span style="font-size:12px; color:var(--text-muted);"><i class="fa-solid fa-circle-check"></i> Processed</span>
-          `;
+          actionButtons = `<span style="font-size:11px;color:var(--text-muted);font-style:italic;">Your account</span>`;
         }
 
-        const roleDropdown = isBypass
-          ? `<span style="font-weight:600; font-size:12px;">${role}</span>`
-          : `
-            <select class="role-select" data-id="${id}" style="padding:6px; font-size:12px; border-radius:6px; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary);">
-              <option value="Operator" ${u.role === 'Operator' ? 'selected' : ''}>Operator</option>
-              <option value="Administrator" ${u.role === 'Administrator' ? 'selected' : ''}>Administrator</option>
-            </select>
-          `;
+        const roleDropdown = `
+          <select class="role-select" data-id="${id}" style="padding:6px;font-size:12px;border-radius:6px;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text-primary);" ${isSelf ? 'disabled title="Cannot change your own role"' : ''}>
+            <option value="Operator" ${u.role === 'Operator' ? 'selected' : ''}>Operator</option>
+            <option value="Administrator" ${u.role === 'Administrator' ? 'selected' : ''}>Administrator</option>
+          </select>
+        `;
 
         return `
           <tr>
-            <td style="font-weight:700;">${name}</td>
-            <td>${email}</td>
-            <td><span class="status-badge ${statusBadgeClass}">${status.toUpperCase()}</span></td>
+            <td style="font-weight:700;">${name}${isSelf ? ' <span style="font-size:10px;color:var(--accent);">(You)</span>' : ''}</td>
+            <td style="font-size:12px;color:var(--text-muted);">${email}</td>
+            <td style="font-size:12px;color:var(--text-muted);">${joined}</td>
+            <td><span class="user-status-badge ${statusBadgeClass}">${escapeHtml(status.toUpperCase())}</span></td>
             <td>${roleDropdown}</td>
-            <td>${isBypass ? '<span style="font-size:12px; color:var(--text-muted);">Default Admin</span>' : actionButtons}</td>
+            <td><div style="display:flex;gap:6px;flex-wrap:wrap;">${actionButtons}</div></td>
           </tr>
         `;
       }).join('');
 
-      // Add event listeners
+      // Approve buttons
       tbody.querySelectorAll('.approve-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           const id = btn.getAttribute('data-id');
-          try {
-            await WMSAuth.approveUser(id);
-            showToast('User approved successfully.', 'success');
-            await renderApprovalsSection();
-          } catch (e) {
-            showToast('Failed to approve user: ' + e.message, 'error');
-          }
+          try { await WMSAuth.approveUser(id); showToast('User approved.', 'success'); await renderApprovalsSection(); }
+          catch (e) { showToast('Failed to approve: ' + e.message, 'error'); }
         });
       });
 
+      // Reject buttons
       tbody.querySelectorAll('.reject-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           const id = btn.getAttribute('data-id');
-          if (confirm('Are you sure you want to reject this request?')) {
-            try {
-              await WMSAuth.rejectUser(id);
-              showToast('User rejected.', 'warning');
-              await renderApprovalsSection();
-            } catch (e) {
-              showToast('Failed to reject user: ' + e.message, 'error');
-            }
-          }
+          try { await WMSAuth.rejectUser(id); showToast('User rejected.', 'warning'); await renderApprovalsSection(); }
+          catch (e) { showToast('Failed to reject: ' + e.message, 'error'); }
         });
       });
 
+      // Delete buttons — use modal confirmation
+      tbody.querySelectorAll('.delete-user-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-id');
+          const name = btn.getAttribute('data-name');
+          openDeleteUserConfirm(id, name, 'renderApprovalsSection');
+        });
+      });
+
+      // Role dropdowns
       tbody.querySelectorAll('.role-select').forEach(sel => {
         sel.addEventListener('change', async () => {
           const id = sel.getAttribute('data-id');
           const newRole = sel.value;
-          try {
-            await WMSAuth.changeUserRole(id, newRole);
-            showToast(`Role updated to ${newRole}.`, 'success');
-            await renderApprovalsSection();
-          } catch (e) {
-            showToast('Failed to change role: ' + e.message, 'error');
-          }
+          try { await WMSAuth.changeUserRole(id, newRole); showToast(`Role updated to ${newRole}.`, 'success'); await renderApprovalsSection(); }
+          catch (e) { showToast('Failed to change role: ' + e.message, 'error'); await renderApprovalsSection(); }
         });
       });
 
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--danger-color);">Error loading users: ${escapeHtml(err.message)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--danger-color);">Error: ${escapeHtml(err.message)}</td></tr>`;
     }
   } else {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">User approval functions require live Supabase auth.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted);">User approval functions require live Supabase auth.</td></tr>';
   }
 }
 
@@ -3014,6 +3023,97 @@ const WMSActivityLog = {
 };
 window.WMSActivityLog = WMSActivityLog;
 
+
+// ============================================================
+//   DELETE PRODUCT CONFIRM MODAL
+// ============================================================
+function openDeleteProductConfirm(sku) {
+  const modal = document.getElementById('deleteProductConfirmModal');
+  if (!modal) return;
+  const msgEl = document.getElementById('delete-product-confirm-msg');
+  if (msgEl) msgEl.textContent = `Delete SKU "${sku}"? This cannot be undone.`;
+  modal._targetSku = sku;
+  modal.classList.add('active');
+}
+
+window._confirmDeleteProduct = async function() {
+  const modal = document.getElementById('deleteProductConfirmModal');
+  if (!modal) return;
+  const sku = modal._targetSku;
+  modal.classList.remove('active');
+  if (!sku) return;
+  try {
+    await WMSDatabase.deleteProduct(sku);
+    productsCache = null;
+    showToast(`Deleted SKU: ${sku}`, 'success');
+    await renderInventoryTable();
+    await renderDashboard();
+  } catch (e) {
+    showToast(`Error deleting product: ${e.message}`, 'error');
+  }
+};
+
+// ============================================================
+//   DELETE USER CONFIRM MODAL
+// ============================================================
+function openDeleteUserConfirm(userId, userName, callbackName) {
+  const modal = document.getElementById('deleteUserConfirmModal');
+  if (!modal) return;
+  const msgEl = document.getElementById('delete-user-confirm-msg');
+  if (msgEl) msgEl.textContent = `Remove user "${userName}"? Their profile will be deactivated and they will lose access.`;
+  modal._targetUserId = userId;
+  modal._callbackName = callbackName;
+  modal.classList.add('active');
+}
+
+window._confirmDeleteUser = async function() {
+  const modal = document.getElementById('deleteUserConfirmModal');
+  if (!modal) return;
+  const userId = modal._targetUserId;
+  const callbackName = modal._callbackName;
+  modal.classList.remove('active');
+  if (!userId) return;
+  try {
+    await WMSAuth.deleteAuthUser(userId);
+    showToast('User removed successfully.', 'success');
+    if (callbackName === 'loadAdminUsers') await loadAdminUsers();
+    else await renderApprovalsSection();
+  } catch (e) {
+    showToast('Failed to remove user: ' + e.message, 'error');
+  }
+};
+
+// ============================================================
+//   RESET DATABASE TYPED CONFIRM MODAL
+// ============================================================
+function openResetConfirmModal() {
+  const modal = document.getElementById('resetConfirmModal');
+  if (!modal) return;
+  const input = document.getElementById('reset-confirm-input');
+  if (input) input.value = '';
+  const btn = document.getElementById('reset-confirm-btn');
+  if (btn) btn.disabled = true;
+  modal.classList.add('active');
+}
+
+window._confirmReset = async function() {
+  const modal = document.getElementById('resetConfirmModal');
+  if (!modal) return;
+  modal.classList.remove('active');
+  const success = await WMSDatabase.resetDatabase();
+  if (success) {
+    productsCache = null;
+    const settingsData = await WMSDatabase.getSettings();
+    currentTheme = settingsData.theme || 'dark';
+    applyTheme(currentTheme);
+    await onViewActivated('view-dashboard');
+    const dashLink = document.querySelector('[data-view="view-dashboard"]');
+    if (dashLink) dashLink.click();
+    showToast('Database reset to factory defaults.', 'success');
+  } else {
+    showToast('Failed to reset database.', 'error');
+  }
+};
 
 // --- DOMCONTENTLOADED ENTRY POINT ---
 document.addEventListener('DOMContentLoaded', async () => {

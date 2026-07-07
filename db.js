@@ -132,6 +132,7 @@ function enrichProductData(product, lowLimit) {
     price:          parseFloat(product.price) || 0,
     status,
     barcode:        product.barcode || product.sku,
+    expiry_date:    product.expiry_date || null,
     updated_at:     product.updated_at || new Date().toISOString()
   };
 }
@@ -203,6 +204,7 @@ class WMSDatabase {
       reorder_level:  parseInt(productData.reorder_level ?? productData.minQty) || 15,
       price:          parseFloat(productData.price) || 0,
       barcode:        cleanSku,
+      expiry_date:    productData.expiry_date || null,
       updated_at:     new Date().toISOString()
     };
 
@@ -247,7 +249,14 @@ class WMSDatabase {
 
   static async logTransaction({ type, sku, productName, category, quantity, price, docRef, location, notes }) {
     requireOnline();
-    const currentUser = this.getCurrentUser();
+    // Always prefer the live Supabase auth profile for operator tagging — this guarantees
+    // every transaction is attributed to the actual logged-in user, not a stale localStorage value.
+    const authProfile = (typeof window !== 'undefined' && window.WMSAuth && window.WMSAuth.profile)
+      ? window.WMSAuth.profile
+      : null;
+    const currentUser = authProfile
+      ? { name: authProfile.full_name || authProfile.email || 'Unknown' }
+      : this.getCurrentUser();
     const cleanSku    = sku.toUpperCase().trim();
     const parsedQty   = parseInt(quantity) || 0;
     const parsedPrice = parseFloat(price) || 0;
@@ -408,6 +417,13 @@ class WMSDatabase {
         window.dispatchEvent(new CustomEvent('wms:products-changed'));
       })
       .subscribe();
+
+    // Also invalidate settingsCache when settings change from any tab/device
+    supabase.channel('wms-settings-invalidation')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, () => {
+        settingsCache = null;
+      })
+      .subscribe();
   }
 
   static subscribeToRealtimeLogs(onTxChange, onLoginChange) {
@@ -513,6 +529,7 @@ class WMSDatabase {
         reorder_level:  parseInt(p.reorder_level ?? p.min_qty ?? p.minQty ?? lowLimit) || lowLimit,
         price:          parseFloat(p.price) || 0,
         barcode:        cleanSku,
+        expiry_date:    p.expiry_date || null,
         updated_at:     new Date().toISOString()
       };
     });
@@ -562,6 +579,7 @@ class WMSDatabase {
           reorder_level:  parseInt(p.reorder_level ?? p.min_qty ?? p.minQty ?? 15) || 15,
           price:          parseFloat(p.price) || 0,
           barcode:        p.barcode || p.sku,
+          expiry_date:    p.expiry_date || null,
           updated_at:     p.updated_at || new Date().toISOString()
         }));
         await supabase.from('products').insert(rows);

@@ -484,8 +484,28 @@
 
     // ── Local / Offline User Helpers ──────────────────────────────
 
-    // Simple SHA-256 hash for local password storage (no plaintext)
-    async function hashPassword(pw) {
+    // PBKDF2 password hashing with a random per-user salt.
+    // Far more resistant to rainbow table attacks than plain SHA-256.
+    async function generateSalt() {
+      const arr = new Uint8Array(16);
+      crypto.getRandomValues(arr);
+      return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function hashPasswordPbkdf2(password, salt) {
+      const enc = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey(
+        'raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']
+      );
+      const bits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', salt: enc.encode(salt), iterations: 100000, hash: 'SHA-256' },
+        keyMaterial, 256
+      );
+      return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Legacy SHA-256 check for migration of existing stored passwords
+    async function hashPasswordLegacy(pw) {
       const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
       return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
@@ -501,13 +521,18 @@
 
         const isFirst = localUsers.length === 0;
         const role = isFirst ? 'Administrator' : 'Operator';
+        // First user is auto-approved as the bootstrap admin; all others require admin approval
         const status = isFirst ? 'approved' : 'pending';
+
+        const salt = await generateSalt();
+        const passwordHash = await hashPasswordPbkdf2(password, salt);
 
         const newUser = {
           id: 'local-' + Math.random().toString(36).substring(2, 11),
           name,
           email,
-          passwordHash: await hashPassword(password),
+          passwordHash,
+          salt,
           role,
           status,
           created_at: new Date().toISOString()
@@ -516,7 +541,7 @@
         localUsers.push(newUser);
         localStorage.setItem('wms_local_users', JSON.stringify(localUsers));
 
-        if (isFirst || status === 'approved') {
+        if (status === 'approved') {
           logInAsLocalUser(newUser);
         } else {
           document.getElementById('form-signup').style.display = 'none';
@@ -548,38 +573,47 @@
 
     function tryLocalSignIn(email, password) {
       const localUsers = JSON.parse(localStorage.getItem('wms_local_users') || '[]');
-      // Support both legacy plaintext passwords (migration) and new hashed passwords
       const doCheck = async () => {
-        const hash = await hashPassword(password);
-        const user = localUsers.find(u =>
-          u.email.toLowerCase() === email.toLowerCase() &&
-          u.passwordHash === hash
-        );
-        if (user) {
-          // Migrate any remaining plaintext passwords to hashed (legacy cleanup)
-          if (user.password && !user.passwordHash) {
-            user.passwordHash = hash;
-            delete user.password;
+        const user = localUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+        if (!user) return false;
+
+        let passwordMatches = false;
+
+        if (user.salt) {
+          // New PBKDF2 path
+          const hash = await hashPasswordPbkdf2(password, user.salt);
+          passwordMatches = (hash === user.passwordHash);
+        } else if (user.passwordHash) {
+          // Legacy SHA-256 — migrate on successful match
+          const legacyHash = await hashPasswordLegacy(password);
+          if (legacyHash === user.passwordHash) {
+            passwordMatches = true;
+            // Migrate to PBKDF2
+            const salt = await generateSalt();
+            user.salt = salt;
+            user.passwordHash = await hashPasswordPbkdf2(password, salt);
             const all = JSON.parse(localStorage.getItem('wms_local_users') || '[]');
             const idx = all.findIndex(u2 => u2.id === user.id);
             if (idx !== -1) { all[idx] = user; localStorage.setItem('wms_local_users', JSON.stringify(all)); }
           }
-          if (user.status === 'pending') {
-            showMsg('Your local account is pending admin approval.', 'warning');
-            setLoading('btn-signin', false);
-            return true;
-          }
-          if (user.status === 'rejected') {
-            showMsg('Your local access request was declined.', 'error');
-            setLoading('btn-signin', false);
-            return true;
-          }
-          logInAsLocalUser(user);
+        }
+
+        if (!passwordMatches) return false;
+
+        if (user.status === 'pending') {
+          showMsg('Your local account is pending admin approval.', 'warning');
+          setLoading('btn-signin', false);
           return true;
         }
-        return false;
+        if (user.status === 'rejected') {
+          showMsg('Your local access request was declined.', 'error');
+          setLoading('btn-signin', false);
+          return true;
+        }
+        logInAsLocalUser(user);
+        return true;
       };
-      return doCheck(); // returns a Promise<boolean>
+      return doCheck();
     }
 
     // ── Sign In ──────────────────────────────────────────────────
@@ -596,9 +630,12 @@
 
       try {
         if (!sb) {
+          // Supabase unavailable — try local user store
           const success = await tryLocalSignIn(email, password);
           if (success) return;
-          throw new Error('Supabase is not loaded (running offline). Please check your internet connection.');
+          showMsg('Sign in failed. No local account found for this email.');
+          setLoading('btn-signin', false);
+          return;
         }
 
         try {
@@ -670,34 +707,33 @@
 
       try {
         if (!sb) {
-          if (confirm("Supabase is not loaded (running offline).\n\nWould you like to register this account locally on this device instead? (Offline Bypass Mode)")) {
-            registerLocalUser(name, email, pw);
-            return;
-          }
-          throw new Error('Supabase is not loaded (running offline). Cannot register a new user.');
+          // Supabase unavailable — register locally (offline mode)
+          await registerLocalUser(name, email, pw);
+          return;
         }
 
-        // Check if this is the very first user — they become admin
+        // Check if this is the very first user — they become the bootstrap admin
         const { count } = await sb.from('user_profiles')
           .select('id', { count: 'exact', head: true });
 
         const isFirstUser = count === 0;
 
-        // Create auth user
+        // Create auth user in Supabase
         const { data, error } = await sb.auth.signUp({ email, password: pw,
           options: { data: { full_name: name } }
         });
         if (error) {
           if (error.message && error.message.includes('Signups not allowed')) {
-            if (confirm("Email signups are disabled in your Supabase Auth project configuration.\n\nWould you like to register this account locally on this device instead? (Offline Bypass Mode)")) {
-              registerLocalUser(name, email, pw);
-              return;
-            }
+            // Supabase signups disabled — fall back to local registration
+            await registerLocalUser(name, email, pw);
+            return;
           }
           throw error;
         }
 
         // Insert profile row
+        // First user gets admin + approved automatically (bootstrap).
+        // Every subsequent user starts as pending and must be approved by an admin.
         const role   = isFirstUser ? 'Administrator' : 'Operator';
         const status = isFirstUser ? 'approved'      : 'pending';
 
@@ -712,9 +748,11 @@
         if (pErr) throw pErr;
 
         if (isFirstUser) {
+          // Bootstrap admin — proceed directly into the app
           window.location.replace('index.html');
         } else {
-          await sb.from('admin_notifications').insert({
+          // Notify admin of the new request
+          sb.from('admin_notifications').insert({
             type: 'new_user_request',
             message: `New access request from ${name} (${email})`,
             user_id: data.user.id,
@@ -722,18 +760,19 @@
             timestamp: new Date().toISOString()
           }).then(() => {}).catch(() => {});
 
+          // Sign out the new user — they cannot access the app until approved
+          await sb.auth.signOut();
+
           document.getElementById('form-signup').style.display = 'none';
           document.getElementById('pending-notice').style.display = 'block';
           showMsg('Request submitted. Awaiting admin approval.', 'success');
-
-          await sb.auth.signOut();
+          setLoading('btn-signup', false);
         }
       } catch (err) {
         if (err.message && err.message.includes('Signups not allowed')) {
-          if (confirm("Email signups are disabled in your Supabase Auth project configuration.\n\nWould you like to register this account locally on this device instead? (Offline Bypass Mode)")) {
-            registerLocalUser(name, email, pw);
-            return;
-          }
+          // Supabase signups disabled — fall back to local registration silently
+          await registerLocalUser(name, email, pw);
+          return;
         }
         showMsg(err.message || 'Sign up failed. Try again.');
         setLoading('btn-signup', false);

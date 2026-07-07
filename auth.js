@@ -16,12 +16,31 @@ window.WMSAuth = {
 
   // Called once on page load — redirects to login if not authenticated
   async init() {
-    // Check for hardcoded admin bypass
+    // Local offline bypass — ONLY trusted for locally-registered users (id starts with "local-").
+    // This prevents anyone from crafting a fake bypass session to impersonate a Supabase user.
     const bypassSession = localStorage.getItem('wms_bypass_session');
     if (bypassSession) {
+      const bypassProfile = JSON.parse(localStorage.getItem('wms_bypass_profile') || 'null');
+
+      // Validate: must be a local user and must be approved
+      if (!bypassProfile || !bypassProfile.id || !String(bypassProfile.id).startsWith('local-')) {
+        // Not a valid local user — clear and redirect
+        localStorage.removeItem('wms_bypass_session');
+        localStorage.removeItem('wms_bypass_profile');
+        window.location.replace('login.html');
+        return;
+      }
+      if (bypassProfile.status !== 'approved') {
+        // Local user not yet approved — clear and redirect
+        localStorage.removeItem('wms_bypass_session');
+        localStorage.removeItem('wms_bypass_profile');
+        window.location.replace('login.html');
+        return;
+      }
+
       this.session = JSON.parse(bypassSession);
-      this.profile = JSON.parse(localStorage.getItem('wms_bypass_profile'));
-      
+      this.profile = bypassProfile;
+
       if (window.WMSDatabase) {
         WMSDatabase.setCurrentUser({
           username: this.profile.email,
@@ -128,11 +147,13 @@ window.WMSAuth = {
   _renderHeaderUser() {
     const p = this.profile;
     if (!p) return;
-    const initials = (p.full_name || '?').split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    const initials = (p.full_name || '?').split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().substring(0, 2);
     const badge = document.getElementById('global-profile-initials');
     const nameEl = document.getElementById('global-header-username');
-    if (badge) badge.textContent = initials;
-    if (nameEl) nameEl.textContent = p.full_name;
+    const roleEl = document.getElementById('global-header-role');
+    if (badge) badge.textContent = initials || '??';
+    if (nameEl) nameEl.textContent = p.full_name || p.name || 'User';
+    if (roleEl) roleEl.textContent = p.role || 'Operator';
   },
 
   // Load unread admin notifications and show badge
@@ -398,8 +419,13 @@ window.WMSAuth = {
 
   async deleteAuthUser(userId) {
     if (this.profile?.role !== 'Administrator') throw new Error('Admin only');
+    // Prevent self-deletion
+    if (this.session?.user?.id === userId) throw new Error('You cannot delete your own account.');
     if (!authSb) return;
+    // Delete from user_profiles (Supabase auth user itself requires admin API — we just revoke access)
     await authSb.from('user_profiles').delete().eq('id', userId);
+    // Belt-and-suspenders: also remove from legacy users table if present
+    authSb.from('users').delete().eq('id', userId).then(() => {}).catch(() => {});
   },
 
   async changeUserRole(userId, newRole) {

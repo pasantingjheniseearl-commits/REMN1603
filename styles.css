@@ -2425,3 +2425,83 @@ body.light-theme .tl-badge.tl-danger {
 .expiry-kpi-card.expiry-ok i,
 .expiry-kpi-card.expiry-ok .expiry-kpi-value { color: var(--success-color); }
 
+
+
+/* ============================================================
+   USER MANAGEMENT — Status badges for User Approvals table
+   ============================================================ */
+
+.user-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.status-badge-approved,
+.user-status-badge.status-badge-approved {
+  background: var(--success-bg);
+  color: var(--success-color);
+  border-color: rgba(52, 211, 153, 0.2);
+}
+
+.status-badge-pending,
+.user-status-badge.status-badge-pending {
+  background: var(--warning-bg);
+  color: var(--warning-color);
+  border-color: rgba(251, 191, 36, 0.2);
+}
+
+.status-badge-rejected,
+.user-status-badge.status-badge-rejected {
+  background: var(--danger-bg);
+  color: var(--danger-color);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.status-badge-unknown,
+.user-status-badge.status-badge-unknown {
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+  border-color: var(--border-color);
+}
+
+/* Light theme overrides for status badges */
+body.light-theme .status-badge-approved  { background: #dcfce7; color: #15803d; }
+body.light-theme .status-badge-pending   { background: #fef3c7; color: #b45309; }
+body.light-theme .status-badge-rejected  { background: #fee2e2; color: #b91c1c; }
+body.light-theme .status-badge-unknown   { background: #f1f5f9; color: #64748b; }
+
+/* ============================================================
+   CONFIRM MODALS — Delete / Reset danger modals
+   ============================================================ */
+
+#deleteProductConfirmModal .modal-content,
+#deleteUserConfirmModal .modal-content,
+#resetConfirmModal .modal-content {
+  border-top: 2px solid var(--danger-color);
+}
+
+#resetConfirmModal #reset-confirm-input {
+  font-size: 14px;
+  letter-spacing: 3px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   STOCK IN — Document reference field
+   ============================================================ */
+
+#stock-in-doc-ref {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13.5px;
+  letter-spacing: 0.3px;
+}

@@ -128,7 +128,16 @@
         <!-- Search bar triggers redirection to Mock Scanner -->
         <div class="search-box">
           <i class="fa-solid fa-magnifying-glass"></i>
-          <input type="text" id="topbar-search" placeholder="Quick SKU search..." onkeypress="if(event.key === 'Enter') { document.querySelector('[data-view=\'view-barcode\']').click(); document.getElementById('mock-scan-input').value = this.value; document.getElementById('mock-scan-btn').click(); this.value = ''; }">
+          <input type="text" id="topbar-search" placeholder="Quick SKU search..." onkeypress="
+            if(event.key === 'Enter') {
+              const authProfile = window.WMSAuth && WMSAuth.profile ? WMSAuth.profile : null;
+              const isOperator = authProfile ? authProfile.role === 'Operator' : false;
+              if (isOperator) { window.showToast && showToast('Use the Inventory search to look up SKUs.', 'warning'); this.value = ''; return; }
+              document.querySelector('[data-view=\'view-barcode\']').click();
+              document.getElementById('mock-scan-input').value = this.value;
+              document.getElementById('mock-scan-btn').click();
+              this.value = '';
+            }">
         </div>
 
         <!-- Light/Dark Mode toggler -->
@@ -354,6 +363,11 @@
               <textarea id="stock-in-notes" placeholder="Specify supply details, supplier, damages check..."></textarea>
             </div>
 
+            <div class="form-group">
+              <label for="stock-in-doc-ref">Document Reference (PO / Receipt No.)</label>
+              <input type="text" id="stock-in-doc-ref" placeholder="e.g. PO-00456">
+            </div>
+
             <div class="form-group-full form-actions">
               <button type="submit" class="btn"><i class="fa-solid fa-plus"></i> Confirm Stock In</button>
             </div>
@@ -379,6 +393,7 @@
                   <th>SKU</th>
                   <th>Product</th>
                   <th>Qty / Location</th>
+                  <th>Doc Ref</th>
                   <th>Operator</th>
                 </tr>
               </thead>
@@ -682,6 +697,7 @@
               <tr>
                 <th>Full Name</th>
                 <th>Email Address</th>
+                <th>Joined</th>
                 <th>Status</th>
                 <th>Assigned Role</th>
                 <th>Actions</th>
@@ -950,7 +966,7 @@
   <!-- Toast Notification Container -->
   <div id="toast-container" class="toast-container"></div>
 
-  <!-- ==================== PROFILE MODAL ==================== -->
+  <!-- ==================== PROFILE MODAL ==================== --> -->
   <div class="modal-overlay" id="profileModal">
     <div class="modal-content" style="width:600px;">
       <div class="modal-header">
@@ -1033,6 +1049,59 @@
         <div id="admin-users-list" style="display:flex;flex-direction:column;gap:10px;">
           <div style="color:var(--text-muted);text-align:center;padding:20px;">Loading...</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Delete Product Confirmation -->
+  <div class="modal-overlay" id="deleteProductConfirmModal">
+    <div class="modal-content" style="width:440px;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-triangle-exclamation" style="color:var(--danger-color);margin-right:8px;"></i>Confirm Delete</h3>
+        <button class="modal-close" onclick="document.getElementById('deleteProductConfirmModal').classList.remove('active')">&times;</button>
+      </div>
+      <p id="delete-product-confirm-msg" style="font-size:14px;color:var(--text-secondary);margin-bottom:24px;line-height:1.6;"></p>
+      <div class="form-actions" style="justify-content:flex-end;gap:10px;margin-top:0;">
+        <button class="btn btn-secondary" onclick="document.getElementById('deleteProductConfirmModal').classList.remove('active')">Cancel</button>
+        <button class="btn" style="background:var(--danger-color);box-shadow:none;" onclick="_confirmDeleteProduct()"><i class="fa-solid fa-trash"></i> Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Delete User Confirmation -->
+  <div class="modal-overlay" id="deleteUserConfirmModal">
+    <div class="modal-content" style="width:440px;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-triangle-exclamation" style="color:var(--danger-color);margin-right:8px;"></i>Remove User</h3>
+        <button class="modal-close" onclick="document.getElementById('deleteUserConfirmModal').classList.remove('active')">&times;</button>
+      </div>
+      <p id="delete-user-confirm-msg" style="font-size:14px;color:var(--text-secondary);margin-bottom:24px;line-height:1.6;"></p>
+      <div class="form-actions" style="justify-content:flex-end;gap:10px;margin-top:0;">
+        <button class="btn btn-secondary" onclick="document.getElementById('deleteUserConfirmModal').classList.remove('active')">Cancel</button>
+        <button class="btn" style="background:var(--danger-color);box-shadow:none;" onclick="_confirmDeleteUser()"><i class="fa-solid fa-user-minus"></i> Remove User</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Factory Reset Typed Confirmation -->
+  <div class="modal-overlay" id="resetConfirmModal">
+    <div class="modal-content" style="width:480px;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-skull-crossbones" style="color:var(--danger-color);margin-right:8px;"></i>Factory Reset Database</h3>
+        <button class="modal-close" onclick="document.getElementById('resetConfirmModal').classList.remove('active')">&times;</button>
+      </div>
+      <p style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;line-height:1.6;">
+        <strong style="color:var(--danger-color);">This will permanently delete ALL products, transactions, and settings.</strong><br>
+        This action cannot be undone. To confirm, type <strong>RESET</strong> in the box below.
+      </p>
+      <div class="form-group" style="margin-bottom:20px;">
+        <input type="text" id="reset-confirm-input" placeholder='Type "RESET" to confirm'
+          oninput="document.getElementById('reset-confirm-btn').disabled = this.value !== 'RESET';"
+          style="text-transform:uppercase;letter-spacing:2px;font-family:'JetBrains Mono',monospace;font-weight:700;">
+      </div>
+      <div class="form-actions" style="justify-content:flex-end;gap:10px;margin-top:0;">
+        <button class="btn btn-secondary" onclick="document.getElementById('resetConfirmModal').classList.remove('active')">Cancel</button>
+        <button class="btn" id="reset-confirm-btn" disabled style="background:var(--danger-color);box-shadow:none;" onclick="_confirmReset()"><i class="fa-solid fa-trash-arrow-up"></i> Reset Everything</button>
       </div>
     </div>
   </div>
