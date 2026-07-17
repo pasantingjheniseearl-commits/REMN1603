@@ -1296,7 +1296,7 @@ function renderBarcodeCards(products) {
   if (matched.length === 0) {
     barcodeGrid.innerHTML = `
       <div style="grid-column:1/-1; text-align:center; color:var(--text-muted); padding:30px 0; font-size:14px;">
-        No products match "<strong>${query}</strong>".
+        No products match "<strong>${escapeHtml(query)}</strong>".
       </div>
     `;
     return;
@@ -1423,7 +1423,7 @@ async function triggerMockScan() {
         <i class="fa-solid fa-triangle-exclamation"></i> SKU Not Found in Database.
       </div>
     `;
-    showToast(`Scanner Error: SKU ${sku} not found`, 'error');
+    showToast(`Scanner Error: SKU ${escapeHtml(sku)} not found`, 'error');
   }
   input.value = ''; // Reset scanner input
 }
@@ -2476,7 +2476,7 @@ function setupEventListeners() {
 
       const existing = await getProductBySku(sku);
       if (existing) {
-        showToast(`SKU ${sku} already exists!`, 'error');
+        showToast(`SKU ${escapeHtml(sku)} already exists!`, 'error');
         return;
       }
 
@@ -2501,7 +2501,7 @@ function setupEventListeners() {
 
         productsCache = null;
         closeAddForm();
-        showToast(`Registered product: ${sku}`, 'success');
+        showToast(`Registered product: ${escapeHtml(sku)}`, 'success');
         await renderInventoryTable();
         await renderDashboard();
       } catch (err) {
@@ -2677,7 +2677,7 @@ function setupEventListeners() {
 
       const product = await getProductBySku(sku);
       if (!product) {
-        showToast(`SKU ${sku} does not exist in the catalog. Register it first!`, 'error');
+        showToast(`SKU ${escapeHtml(sku)} does not exist in the catalog. Register it first!`, 'error');
         return;
       }
 
@@ -2729,7 +2729,7 @@ function setupEventListeners() {
         if (priceError) priceError.style.display = 'none';
         const expiryError = document.getElementById('expiry-date-error');
         if (expiryError) expiryError.style.display = 'none';
-        showToast(`Stocked in ${qty} units of ${sku} at ${location}`, 'success');
+        showToast(`Stocked in ${qty} units of ${escapeHtml(sku)} at ${escapeHtml(location)}`, 'success');
         await initStockInForm();
         await renderDashboard();
         await loadNearExpiryProducts();
@@ -2802,7 +2802,7 @@ function setupEventListeners() {
 
       const product = await getProductBySku(sku);
       if (!product) {
-        showToast(`SKU ${sku} does not exist in catalog.`, 'error');
+        showToast(`SKU ${escapeHtml(sku)} does not exist in catalog.`, 'error');
         return;
       }
 
@@ -2831,7 +2831,7 @@ function setupEventListeners() {
         const locSel = document.getElementById('stock-out-location');
         if (locSel) { locSel.innerHTML = '<option value="">Select a SKU first...</option>'; locSel.disabled = true; }
         document.getElementById('stock-out-details').innerHTML = '';
-        showToast(`Dispatched ${qty} units of ${sku} from ${location}`, 'success');
+        showToast(`Dispatched ${qty} units of ${escapeHtml(sku)} from ${escapeHtml(location)}`, 'success');
         await initStockOutForm();
         await renderDashboard();
       } catch (err) {
@@ -3845,7 +3845,7 @@ window._confirmDeleteProduct = async function() {
   try {
     await WMSDatabase.deleteProduct(sku);
     productsCache = null;
-    showToast(`Deleted SKU: ${sku}`, 'success');
+    showToast(`Deleted SKU: ${escapeHtml(sku)}`, 'success');
     await renderInventoryTable();
     await renderDashboard();
   } catch (e) {
@@ -3920,7 +3920,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Clean up legacy offline-mode keys that are no longer used in online-only mode.
   // NOTE: wms_bypass_session / wms_bypass_profile are intentionally kept —
   // auth.js uses them for the local/offline user login path.
-  ['wms_local_users', 'wms_local_products', 'wms_local_transactions',
+  // CRITICAL: wms_local_users is intentionally preserved — login.html uses it for
+  // local/offline sign-up and sign-in. Deleting it would orphan all registered local users.
+  ['wms_local_products', 'wms_local_transactions',
    'wms_local_settings'].forEach(key => localStorage.removeItem(key));
 
   // ── Auth guard: must be first ──────────────────────────────────
