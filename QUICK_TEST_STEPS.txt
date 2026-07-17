@@ -1,0 +1,140 @@
+═══════════════════════════════════════════════════════════════════════════════
+  QUICK TEST STEPS - BARCODE SCANNER FIXES (2 MINUTES)
+═══════════════════════════════════════════════════════════════════════════════
+
+BEFORE YOU START:
+✓ Hard refresh browser: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)
+✓ Open browser console: F12
+✓ Navigate to the WMS application
+
+═══════════════════════════════════════════════════════════════════════════════
+TEST 1: VERIFY SCRIPTS LOADED (30 seconds)
+═══════════════════════════════════════════════════════════════════════════════
+
+In the browser console (F12), copy and paste:
+
+    console.log('Barcode module:', typeof window.testBarcode === 'function');
+    console.log('Parser module:', typeof window.parseScannedInput === 'function');
+    console.log('Extract function:', typeof window.extractSKUFromBarcode === 'function');
+
+EXPECTED OUTPUT:
+    Barcode module: true
+    Parser module: true
+    Extract function: true
+
+✗ If ANY show "false": Hard refresh again or clear cache
+
+
+═══════════════════════════════════════════════════════════════════════════════
+TEST 2: TEST BARCODE EXTRACTION (30 seconds)
+═══════════════════════════════════════════════════════════════════════════════
+
+In the browser console, paste:
+
+    window.testBarcode('02050-10153588-6')
+
+EXPECTED OUTPUT:
+    🧪 Barcode Test
+    Input: 02050-10153588-6
+    Result: {
+      mode: "barcode",
+      sku: "10153588",
+      raw: "02050-10153588-6",
+      fullBarcode: "020501015358806",
+      timestamp: "2024-..."
+    }
+
+✓ Shows mode: "barcode" → Extraction WORKING
+✗ Shows mode: "manual" → Format not recognized
+
+
+═══════════════════════════════════════════════════════════════════════════════
+TEST 3: TEST FIND BLOCKING (30 seconds)
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP 1: Navigate to "Barcode & Scan" view (click in left sidebar)
+
+STEP 2: Press Ctrl+F (Windows/Linux) or Cmd+F (Mac)
+
+EXPECTED RESULT:
+    ✓ Find dialog does NOT appear
+    ✓ See a warning toast: "Find is disabled during barcode scanning mode"
+    ✓ Console shows: "[FindBlocker L1] ✓ Ctrl/Cmd+F intercepted"
+
+✗ If Find dialog opens: Hard refresh and try again
+
+
+═══════════════════════════════════════════════════════════════════════════════
+TEST 4: TEST FIND WORKS IN OTHER VIEWS (30 seconds)
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP 1: Navigate to "Inventory" view
+
+STEP 2: Press Ctrl+F or Cmd+F
+
+EXPECTED RESULT:
+    ✓ Find dialog DOES open (this is correct behavior)
+    ✓ Confirms blocker only activates on Barcode view
+
+
+═══════════════════════════════════════════════════════════════════════════════
+TEST 5: TEST BARCODE SCANNING IN UI (1 minute)
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP 1: In the Barcode & Scan view, find the scanner input box
+
+STEP 2: Click in the "Type SKU or click card to Scan..." input field
+
+STEP 3: Type: 02050-10153588-6
+
+STEP 4: Press Enter or click "Scan Code" button
+
+EXPECTED RESULT:
+    ✓ Console shows: "[extractSKUFromBarcode] ✓ BARCODE detected! Extracted SKU: 10153588"
+    ✓ Success toast: "Scanner: Scanned 10153588 successfully"
+    ✓ Shows matching product card below (if product exists in database)
+    ✓ Input field clears after scan
+
+✗ Shows "SKU Not Found": Product with SKU 10153588 doesn't exist in database (this is OK)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+
+If ALL tests pass ✓ → FIXES ARE WORKING! You're done.
+
+If ANY test fails ✗ → Follow troubleshooting below:
+
+TROUBLESHOOTING:
+
+  1. Try hard refresh again: Ctrl+Shift+R
+  
+  2. Clear browser cache:
+     - Press F12
+     - Right-click reload button
+     - Select "Empty cache and hard refresh"
+  
+  3. Test in private/incognito mode:
+     - Ctrl+Shift+N (Chrome/Edge)
+     - Cmd+Shift+N (Firefox)
+     - Cmd+Shift+P (Safari)
+     - Disables browser extensions that might interfere
+  
+  4. Check console for errors:
+     - Open F12 console
+     - Look for red error messages
+     - Take screenshot if present
+
+NEED HELP?
+
+  Check console messages:
+  - Should see: "🎯 Barcode Scanner Module Initializing"
+  - Should see: "✅ Barcode Scanner Module Ready"
+  - Should see: "[setupFindBlocker] ✓ Find blocker ACTIVATED (3 layers)"
+
+  If you see errors instead, note them and check for typos in file edits.
+
+═══════════════════════════════════════════════════════════════════════════════
+That's it! These quick tests verify both issues are fixed.
+═══════════════════════════════════════════════════════════════════════════════

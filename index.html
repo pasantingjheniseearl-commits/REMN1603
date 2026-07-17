@@ -1300,6 +1300,8 @@
   </div>
 
   <!-- Main JavaScript Modules -->
+  <!-- NOTE: barcodeScanner.js MUST load BEFORE app.js to set up event handlers properly -->
+  <script src="barcodeScanner.js"></script>
   <script src="parseScannedInput.js"></script>
   <script src="app.js"></script>
 </body>

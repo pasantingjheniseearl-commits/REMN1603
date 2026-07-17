@@ -2991,11 +2991,12 @@ function setupEventListeners() {
       const isCmdF = (e.metaKey && e.key.toLowerCase() === 'f');
       
       if (isCtrlF || isCmdF) {
-        console.log('[Scanner] Find popup blocked - barcode scanning active');
+        console.log('[Scanner Input Focus] ✓ Find popup blocked - Ctrl/Cmd+F intercepted');
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
         showToast('Find is disabled during barcode scanning', 'warning');
+        return false; // Extra safety return
       }
     }, true); // true = capture phase (intercept early)
   }
@@ -4076,6 +4077,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Global Find blocker: Prevent Ctrl+F / Cmd+F when barcode scanner is active
   // This blocks search popups in Chrome, Firefox, Safari, and Edge to maintain
   // uninterrupted barcode scanning workflow in warehouse environments
+  // ENHANCED: Multiple layers + capture phase + stopImmediatePropagation
   document.addEventListener('keydown', (e) => {
     // Check if barcode scanner view is currently active
     const barcodeView = document.getElementById('view-barcode');
@@ -4091,9 +4093,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.stopPropagation();
         e.stopImmediatePropagation();
         showToast('Find is disabled during barcode scanning mode', 'warning');
+        return false; // Return false for extra safety
       }
     }
-  }, true); // Capture phase for early interception to intercept before other handlers
+  }, true); // Capture phase for early interception
+
+  // ADDITIONAL: Window-level Find blocker as last resort
+  window.addEventListener('keydown', (e) => {
+    const barcodeView = document.getElementById('view-barcode');
+    const isScannerActive = barcodeView && barcodeView.classList.contains('active');
+    
+    if (isScannerActive) {
+      const isCtrlF = (e.ctrlKey && e.key.toLowerCase() === 'f');
+      const isCmdF = (e.metaKey && e.key.toLowerCase() === 'f');
+      
+      if (isCtrlF || isCmdF) {
+        console.log('[Window] Find popup blocked - window level');
+        e.preventDefault();
+        return false;
+      }
+    }
+  }, true); // Capture phase
 
   // SAFETY MECHANISM: Ensure sidebar footer is always displaying the current logged-in user
   // by setting up a periodic refresh that catches any edge cases where stale data might show
