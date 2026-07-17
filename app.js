@@ -2230,9 +2230,9 @@ async function addBulkRow(type) {
   const tr = document.createElement('tr');
   tr.id = rowId;
   if (type === 'in') {
-    tr.innerHTML = `<td><input type="text" class="bulk-sku" list="stock-in-sku-list" placeholder="SKU" autocomplete="off" style="width:100%;"></td><td><select class="bulk-location" style="width:100%;">${locOptions}</select></td><td><input type="number" class="bulk-qty" min="1" placeholder="Qty" style="width:90px;"></td><td><input type="number" class="bulk-price" min="0" step="0.01" placeholder="0.00" style="width:100px;"></td><td><input type="text" class="bulk-docref" placeholder="Doc Ref" style="width:100%;"></td><td><input type="text" class="bulk-notes" placeholder="Notes" style="width:100%;"></td><td><button type="button" class="action-btn delete" onclick="document.getElementById('${rowId}').remove()"><i class="fa-solid fa-trash"></i></button></td>`;
+    tr.innerHTML = `<td><input type="text" class="bulk-sku" list="stock-in-sku-list" placeholder="SKU" autocomplete="off" style="width:100%;"></td><td><select class="bulk-location" style="width:100%;">${locOptions}</select></td><td><input type="number" class="bulk-qty" min="1" placeholder="Qty" style="width:90px;"></td><td><button type="button" class="action-btn delete" onclick="document.getElementById('${rowId}').remove()"><i class="fa-solid fa-trash"></i></button></td>`;
   } else {
-    tr.innerHTML = `<td><input type="text" class="bulk-sku" list="stock-out-sku-list" placeholder="SKU" autocomplete="off" style="width:100%;"></td><td><select class="bulk-location" style="width:100%;"><option value="">Type SKU first</option></select></td><td><input type="number" class="bulk-qty" min="1" placeholder="Qty" style="width:90px;"></td><td><input type="number" class="bulk-price" min="0" step="0.01" placeholder="0.00" style="width:100px;"></td><td><input type="text" class="bulk-docref" placeholder="Doc Ref" style="width:100%;"></td><td><input type="text" class="bulk-notes" placeholder="Notes" style="width:100%;"></td><td><button type="button" class="action-btn delete" onclick="document.getElementById('${rowId}').remove()"><i class="fa-solid fa-trash"></i></button></td>`;
+    tr.innerHTML = `<td><input type="text" class="bulk-sku" list="stock-out-sku-list" placeholder="SKU" autocomplete="off" style="width:100%;"></td><td><select class="bulk-location" style="width:100%;"><option value="">Type SKU first</option></select></td><td><input type="number" class="bulk-qty" min="1" placeholder="Qty" style="width:90px;"></td><td><button type="button" class="action-btn delete" onclick="document.getElementById('${rowId}').remove()"><i class="fa-solid fa-trash"></i></button></td>`;
   }
   tbody.appendChild(tr);
   // Stock Out: populate the per-row location dropdown from that row's SKU
@@ -2272,9 +2272,6 @@ async function submitBulkBatch(type) {
     const sku      = row.querySelector('.bulk-sku')?.value.trim().toUpperCase();
     const location = row.querySelector('.bulk-location')?.value;
     const qty      = parseInt(row.querySelector('.bulk-qty')?.value) || 0;
-    const price    = parseFloat(row.querySelector('.bulk-price')?.value) || 0;
-    const docRef   = row.querySelector('.bulk-docref')?.value.trim() || 'N/A';
-    const notes    = row.querySelector('.bulk-notes')?.value.trim() || '';
     if (!sku && !qty) continue; // skip fully blank rows silently
     try {
       if (!sku) throw new Error('SKU is required.');
@@ -2290,7 +2287,7 @@ async function submitBulkBatch(type) {
       await WMSDatabase.logTransaction({
         type: type === 'in' ? 'Stock In' : 'Stock Out',
         sku, productName: product.name, category: product.category,
-        quantity: qty, price, docRef, location, notes
+        quantity: qty, location
       });
       outcomes.push({ row, sku, status: 'success', message: `${qty} units @ ${location}` });
     } catch (err) {
